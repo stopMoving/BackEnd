@@ -61,6 +61,7 @@ DJANGO_APPS = [
 ]
 
 PROJECT_APPS = [
+    'posts', # test API 위해 생성
 
 ]
 
@@ -168,3 +169,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ]
+}
