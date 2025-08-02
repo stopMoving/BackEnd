@@ -176,3 +176,6 @@ secrets.json
 
 # logging
 src/logs/
+
+# db
+stopMoving_dev

@@ -15,10 +15,14 @@ import os, json
 from django.core.exceptions import ImproperlyConfigured
 
 from src.stopmoving.logging_config import LOGGING_CONFIG as CUSTOM_LOGGING
+import pymysql
 
 # 로깅 설정
 LOGGING_CONFIG = "logging.config.dictConfig"
 LOGGING = CUSTOM_LOGGING
+
+# pymysql을 MySQLdb로 사용하도록 설정
+pymysql.install_as_MySQLdb()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -108,10 +112,20 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# MySQL 데이터베이스 설정
+# secrets.json에 각자 유저 이름과 비밀번호에 맞게 작성되어있는지 확인!
+DB_USER = get_secret("DB_USER")
+DB_PW = get_secret("DB_PW")
+
+# ssh 터널링 적용 이후 db 정보 연결
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': "stopMoving_dev",
+        'USER': DB_USER,
+        'PASSWORD': DB_PW,
+        'HOST': "127.0.0.1",
+        'PORT': "3307",
     }
 }
 
