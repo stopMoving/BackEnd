@@ -178,4 +178,4 @@ secrets.json
 src/logs/
 
 # db
-stopMoving_dev
+stopMoving_dev.DS_Store
