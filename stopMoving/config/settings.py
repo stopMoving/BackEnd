@@ -41,6 +41,7 @@ def get_secret(setting, secrets=secrets):
         raise ImproperlyConfigured(error_msg)
 
 SECRET_KEY = get_secret("SECRET_KEY")
+API_KEY = get_secret("ALADIN_API_KEY")
 
 
 # Quick-start development settings - unsuitable for production
@@ -66,6 +67,7 @@ DJANGO_APPS = [
 
 PROJECT_APPS = [
     'posts', # test API 위해 생성
+    'bookinfo', # 알라딘 API로 책 검색
 
 ]
 
