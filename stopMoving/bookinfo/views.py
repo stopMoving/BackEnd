@@ -25,7 +25,7 @@ class BookLookUpAPIView(APIView):
         
         url = "http://www.aladin.co.kr/ttb/api/ItemLookUp.aspx"
         params = {
-            "ttbkey": settings.ALADIN_API_KEY,
+            "ttbkey": settings.API_KEY,
             "itemIdType": "ISBN13",
             "ItemId": isbn,
             "output": "js",
