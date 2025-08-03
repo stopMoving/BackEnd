@@ -29,7 +29,8 @@ class BookLookUpAPIView(APIView):
             "itemIdType": "ISBN13",
             "ItemId": isbn,
             "output": "js",
-            "Version": "20131101"
+            "Version": "20131101",
+            "OptResult": "packing"
         }
 
         try:
