@@ -19,7 +19,7 @@ class BookLookUpAPIView(APIView):
         responses={200: '성공', 400: '잘못된 요청', 502: '외부 API 오류'}
     )
     def get(self, request):
-        isbn = requests.query_params.get('isbn') # 프론트에서 넘겨주는 isbn
+        isbn = request.query_params.get('isbn') # 프론트에서 넘겨주는 isbn
         if not isbn:
             return Response({"error": "ISBN이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
         
