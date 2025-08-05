@@ -184,6 +184,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [ 
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://idyllic-blancmange-57b456.netlify.app/camera-test-3.html",
 ]
 
 REST_FRAMEWORK = {
