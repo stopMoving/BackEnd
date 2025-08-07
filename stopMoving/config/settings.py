@@ -114,20 +114,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# MySQL 데이터베이스 설정
+# 데이터베이스 설정
 # secrets.json에 각자 유저 이름과 비밀번호에 맞게 작성되어있는지 확인!
+DB_NAME = get_secret("DB_NAME") # prod / dev 구분
+# DB_USER & DB_PW: rds / mysql 접속 유저 이름과 비밀번호 구분
 DB_USER = get_secret("DB_USER")
 DB_PW = get_secret("DB_PW")
+DB_HOST = get_secret("DB_HOST") # EC2 호스트 주소 / 로컬 포트
+DB_PORT = get_secret("DB_PORT") # 3306(ec2) / 3307(로컬)
 
 # ssh 터널링 적용 이후 db 정보 연결
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': "stopMoving_dev",
+        'NAME': DB_NAME,
         'USER': DB_USER,
         'PASSWORD': DB_PW,
-        'HOST': "127.0.0.1",
-        'PORT': "3307",
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
     }
 }
 
@@ -181,10 +185,13 @@ CORS_ALLOW_CREDENTIALS = True
 # 여기에서의 localhost는 EC2 인스턴스의 로컬환경이 아니라 프론트엔드 개발 로컬 환경 의미
 # 3000 포트는 프론트엔드 React 애플리케이션의 포트 번호
 # 추후 프론트엔드에서 웹 페이지 배포 후 도메인 매핑했다면 해당 도메인 추가 필요
+# 우선순위 적용되어 CORS_ALLOW_ALL_ORIGINS = True가 설정되면 CORS_ALLOWED_ORIGINS는 무시됩니다.
+CORS_ALLOW_ALL_ORIGINS = True  # ⚠️ 운영 배포 시엔 사용 비추천
+
 CORS_ALLOWED_ORIGINS = [ 
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://idyllic-blancmange-57b456.netlify.app/camera-test-3.html",
+    "https://idyllic-blancmange-57b456.netlify.app", # 도메인까지만 작성
 ]
 
 REST_FRAMEWORK = {
