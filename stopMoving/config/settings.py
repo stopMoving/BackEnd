@@ -17,6 +17,8 @@ from django.core.exceptions import ImproperlyConfigured
 from src.stopmoving.logging_config import LOGGING_CONFIG as CUSTOM_LOGGING
 import pymysql
 
+from datetime import timedelta
+
 # 로깅 설정
 LOGGING_CONFIG = "logging.config.dictConfig"
 LOGGING = CUSTOM_LOGGING
@@ -68,12 +70,14 @@ DJANGO_APPS = [
 PROJECT_APPS = [
     'posts', # test API 위해 생성
     'bookinfo', # 알라딘 API로 책 검색
+    'accounts' # 회원가입 및 로그인
 
 ]
 
 THIRD_PARTY_APPS = [ 
     "corsheaders",
     'drf_yasg',  # Swagger
+    'rest_framework_simplejwt', # JWT
 ]
 
 
@@ -154,6 +158,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+AUTH_USER_MODEL = 'accounts.User'
+
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -195,7 +202,17 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ]
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+REST_USE_JWT = True
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=20),    # 유효기간 20일 -> 배포시 3시간으로 변경
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),    # 유효기간 7일
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'TOKEN_USER_CLASS': 'accounts.User',
 }
