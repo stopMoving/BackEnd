@@ -120,3 +120,4 @@ class AuthSerializer(serializers.ModelSerializer):
         }
 
         return data
+

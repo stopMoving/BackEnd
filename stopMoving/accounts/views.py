@@ -12,6 +12,8 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 # Create your views here.
+
+# 회원가입
 class RegisterView(APIView):
     @swagger_auto_schema(
         request_body=RegisterSerializer,
@@ -64,7 +66,7 @@ class RegisterView(APIView):
             )
             return res
         
-
+# 로그인
 class AuthView(APIView):
     @swagger_auto_schema(
         request_body=AuthSerializer,
@@ -132,7 +134,7 @@ class AuthView(APIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-
+# 로그아웃
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -150,3 +152,5 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request)
         return Response({"로그아웃 성공!"}, status=status.HTTP_200_OK)
+    
+
