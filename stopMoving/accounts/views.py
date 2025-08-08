@@ -80,8 +80,7 @@ class AuthView(APIView):
                         },
                         "message": "로그인 성공!",
                         "token": {
-                            "access_token": "access_token_value",
-                            "refresh_token": "refresh_token_value"
+                            "access_token": "access_token_value"
                         }
                     }
                 }
@@ -107,8 +106,7 @@ class AuthView(APIView):
                     },
                     "message": "로그인 성공!",
                     "token": {
-                        "access_token": access_token,
-                        "refresh_token": refresh_token,
+                        "access_token": access_token
                     }, 
                 },
                 status=status.HTTP_200_OK,
