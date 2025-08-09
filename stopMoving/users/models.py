@@ -23,3 +23,5 @@ class UserBook(models.Model):
 
     class Meat:
         unique_together = {'users', 'book'}
+      
+
