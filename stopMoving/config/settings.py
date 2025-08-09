@@ -73,6 +73,7 @@ PROJECT_APPS = [
     'accounts', # 회원가입 및 로그인
     'library', # 도서관 정보
     'users', # 유저 정보
+    'books', # 책 객체
 ]
 
 THIRD_PARTY_APPS = [ 

@@ -1,5 +1,6 @@
 from django.db import models
 from accounts.models import User
+from books.models import Book
 
 # Create your models here.
 class UserInfo(models.Model):
@@ -13,9 +14,14 @@ class Status(models.TextChoices):
     PURCHASED = 'PURCHASED', '구매'
 
 class UserBook(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    # book = models.OneToOneField(, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.PROTECT)
+    book = models.OneToOneField(Book, on_delete=models.PROTECT)
     status = models.CharField( # 상태: 기증/구매
         max_length=20,
         choices=Status.choices,   # Enum 연결
     )
+
+    class Meat:
+        unique_together = {'users', 'book'}
+      
+
