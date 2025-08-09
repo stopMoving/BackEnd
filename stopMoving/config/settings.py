@@ -69,7 +69,7 @@ DJANGO_APPS = [
 
 PROJECT_APPS = [
     'posts', # test API 위해 생성
-    'bookinfo', # 알라딘 API로 책 검색
+    'bookinfo', # 책 상세 정보
     'accounts' # 회원가입 및 로그인
 
 ]
