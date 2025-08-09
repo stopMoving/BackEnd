@@ -5,7 +5,7 @@ from .models import Book
 class BookAdmin(admin.ModelAdmin):
     list_display = (
         "id", "isbn", "get_title", "library", "donor_user",
-        "status", "donation_date", "expire_date", "current_price"
+        "status", "donation_date", "expire_date", "regular_price"
     )
     list_filter = ("status", "library", "donation_date", "expire_date")
     search_fields = ("isbn__isbn", "isbn__name", "library__name", "donor_user__username")
