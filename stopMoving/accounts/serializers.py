@@ -81,48 +81,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("이미 사용 중인 아이디입니다.")
         
         return value
-    
-
-
-# 로그인용 시리얼라이저
-class AuthSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(required=True)
-    password = serializers.CharField(required=True)
-    
-    class Meta:
-        model = User
-
-        # 로그인은 username과 password만 필요
-        fields = ['username', 'password']
-
-    # 로그인 유효성 검사 함수
-    def validate(self, data):
-        username = data.get('username', None)
-        password = data.get('password', None)
-		    
-		    # username으로 사용자 찾는 모델 함수
-        user = User.get_user_by_username(username=username)
-        
-        # 존재하는 회원인지 확인
-        if user is None:
-            raise serializers.ValidationError("User does not exist.")
-        else:
-			      # 비밀번호 일치 여부 확인
-            if not user.check_password(password):
-                raise serializers.ValidationError("Wrong password.")
-        
-        token = RefreshToken.for_user(user)
-        refresh_token = str(token)
-        access_token = str(token.access_token)
-
-        data = {
-            "user": user,
-            "refresh_token": refresh_token,
-            "access_token": access_token,
-        }
-
-        return data
-
 
 # 로그인용 시리얼라이저
 class AuthSerializer(serializers.ModelSerializer):
@@ -162,3 +120,4 @@ class AuthSerializer(serializers.ModelSerializer):
         }
 
         return data
+
