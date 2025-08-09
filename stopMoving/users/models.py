@@ -15,7 +15,7 @@ class Status(models.TextChoices):
 
 class UserBook(models.Model):
     user = models.ForeignKey(User, on_delete=models.PROTECT)
-    book = models.OneToOneField(Book, on_delete=models.PROTECT,null=True, blank=True,)
+    book = models.OneToOneField(Book, on_delete=models.PROTECT)
     status = models.CharField( # 상태: 기증/구매
         max_length=20,
         choices=Status.choices,   # Enum 연결
