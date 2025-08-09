@@ -69,11 +69,10 @@ DJANGO_APPS = [
 
 PROJECT_APPS = [
     'posts', # test API 위해 생성
-    'bookinfo', # 알라딘 API로 책 검색
+    'bookinfo', # 책 검색
     'accounts', # 회원가입 및 로그인
     'library', # 도서관 정보
     'users', # 유저 정보
-
 ]
 
 THIRD_PARTY_APPS = [ 
