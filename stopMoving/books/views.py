@@ -1,78 +1,148 @@
-from django.shortcuts import render
-# books/views.py
 from django.db import transaction
-from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, permissions
+from rest_framework import status
+from drf_yasg.utils import swagger_auto_schema
 
+from .serializers import DonationSerializer, PickupSerializer
 from .models import Book
-from .serializers import BookPickRequestSerializer
+from library.models import Library
+from bookinfo.models import BookInfo
+from bookinfo.serializers import DonationDisplaySerializer, PickupDisplaySerializer
 
-class PickBooksAPIView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+POINT_PER_BOOK = 500
 
+class DonationAPIView(APIView):
+    """
+    여러 권(또는 1권) 기증 확정:
+    - 각 항목마다 BookInfo get_or_create
+    - Book 재고 1권씩 생성
+    - 성공 건수 * 500p 반환
+    """
+    @swagger_auto_schema(
+        operation_description="도서 일괄 기증(단권/다권 모두 지원)",
+        request_body=DonationSerializer,
+        responses={201: "생성됨", 400: "검증 오류", 404: "도서관 없음"}
+    )
     def post(self, request):
-        """
-        장바구니 book_ids를 받아서
-        - 만료되지 않았고(expire_date >= now)
-        - 현재 AVAILABLE 인 책만
-        """
-        s = BookPickRequestSerializer(data=request.data)
+        s = DonationSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        book_ids = s.validated_data["book_ids"]
+        v = s.validated_data
 
-        # 현재 시각
-        now = timezone.now()
+        library = Library.objects.filter(id=v["library_id"]).first()
+        if not library:
+            return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
-        # 기본 결과 틀
-        results = {bid: {"updated": False, "reason": None} for bid in book_ids}
+        results = []
+        success_cnt = 0
 
-        # DB에서 정보 가져오기
-        existing_qs = Book.objects.filter(id__in=book_ids).only("id", "status", "expire_date")
-        existing_by_id = {b.id: b for b in existing_qs}
+        for item in v["items"]:
+            try:
+                info, created = BookInfo.objects.get_or_create(
+                    isbn=item["isbn"],
+                    defaults={
+                        "title": item.get("title", "") or "",
+                        "author": item.get("author", "") or "",
+                        "publisher": item.get("publisher", "") or "",
+                        "regular_price": item.get("regular_price"),
+                    },
+                )
+                # 정가 보강
+                if (not created) and info.regular_price is None and item.get("regular_price") is not None:
+                    info.regular_price = item["regular_price"]
+                    info.save(update_fields=["regular_price"])
 
-        with transaction.atomic():
-            # 잠금 + 조건 충족분만 선별
-            lock_qs = (
-                Book.objects
-                .select_for_update(skip_locked=True)
-                .filter(id__in=book_ids, status="AVAILABLE")
-                .exclude(expire_date__lt=now)
-            )
+                book = Book.objects.create(
+                    library=library,
+                    isbn=info,
+                    regular_price=item.get("regular_price") or info.regular_price,
+                    donor_user=request.user if request.user.is_authenticated else None,
+                )
+                success_cnt += 1
+                results.append({
+                    "isbn": info.isbn,
+                    "book_id": book.id,
+                    "status": "CREATED",
+                    "book_info": DonationDisplaySerializer(info).data
+                })
+            except Exception as e:
+                results.append({
+                    "isbn": item["isbn"],
+                    "status": "ERROR",
+                    "message": str(e),
+                })
 
-            # 이번 호출에서 실제로 갱신될 id 집합
-            will_update_ids = list(lock_qs.values_list("id", flat=True))
+        return Response({
+            "message": "일괄 기증 처리 완료",
+            "library_id": library.id,
+            "count_success": success_cnt,
+            "count_total": len(v["items"]),
+            "points_earned": success_cnt * POINT_PER_BOOK,  # 권당 500p
+            "items": results
+        }, status=status.HTTP_201_CREATED)
 
-            # 일괄 상태 변경
-            if will_update_ids:
-                (Book.objects
-                     .filter(id__in=will_update_ids)
-                     .update(status="PICKED"))
+class PickupAPIView(APIView):
+    """
+    여러 권(또는 1권) 픽업:
+    - 각 항목마다 해당 도서관에서 AVAILABLE 1권을 잠그고 PICKED로 변경
+    - DB에 정가 없고 요청값 있으면 보강
+    - 부분 성공 허용(항목별 성공/실패 결과 반환)
+    """
+    @swagger_auto_schema(
+        operation_description="도서 일괄 픽업(단권/다권 모두 지원)",
+        request_body=PickupSerializer,
+        responses={200: "처리됨", 400: "검증 오류", 404: "도서관 없음"}
+    )
+    def post(self, request):
+        s = PickupSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        v = s.validated_data
 
-        # id별 결과/사유 채우기
-        for bid in book_ids:
-            b = existing_by_id.get(bid)
-            # 존재하지 않으면
-            if not b:
-                results[bid] = {"updated": False, "reason": "NOT_FOUND"}
-                continue
-            # 존재할 때
-            if bid in will_update_ids:
-                results[bid] = {"updated": True, "reason": None}
-                continue
+        library = Library.objects.filter(id=v["library_id"]).first()
+        if not library:
+            return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
-            # 실패 사유 상세
-            if b.expire_date and b.expire_date < now:
-                results[bid] = {"updated": False, "reason": "EXPIRED"}
-            elif b.status != "AVAILABLE":
-                results[bid] = {"updated": False, "reason": f"ALREADY_{b.status}"}
-            else:
-                # 동시성 등으로 조건 미충족
-                results[bid] = {"updated": False, "reason": "CONFLICT"}
+        results = []
+        success_cnt = 0
 
-        updated_count = sum(1 for v in results.values() if v["updated"])
-        return Response(
-            {"updated_count": updated_count, "results": results},
-            status=status.HTTP_200_OK
-        )
+        for item in v["items"]:
+            with transaction.atomic():
+                info = BookInfo.objects.filter(isbn=item["isbn"]).first()
+                if not info:
+                    results.append({"isbn": item["isbn"], "status": "ERROR", "message": "ISBN 메타 없음"})
+                    continue
+
+                # 재고 1권 잠그고 가져오기 (가장 오래된 것 우선)
+                book = (Book.objects
+                        .select_for_update()
+                        .filter(library=library, isbn=info, status="AVAILABLE")
+                        .order_by("donation_date")
+                        .first())
+                if not book:
+                    results.append({"isbn": item["isbn"], "status": "ERROR", "message": "재고 없음"})
+                    continue
+
+                # 정가 보강(DB 없고 요청값 있으면)
+                if info.regular_price is None and item.get("regular_price") is not None:
+                    info.regular_price = item["regular_price"]
+                    info.save(update_fields=["regular_price"])
+
+                # 상태 전환
+                book.status = "PICKED"
+                book.save(update_fields=["status"])
+
+                success_cnt += 1
+                results.append({
+                    "isbn": info.isbn,
+                    "book_id": book.id,
+                    "status": "PICKED",
+                    "book_info": PickupDisplaySerializer(info).data  # 정가 + 85% 판매가 포함
+                })
+
+        return Response({
+            "message": "일괄 픽업 처리 완료",
+            "library_id": library.id,
+            "count_success": success_cnt,
+            "count_total": len(v["items"]),
+            "items": results
+        }, status=status.HTTP_200_OK)
