@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from rest_framework.permissions import IsAuthenticated
 
 from .models import BookInfo
 from bookinfo.serializers import (
@@ -15,10 +16,8 @@ from bookinfo.serializers import (
     BookInfoUpsertSerializer,
 )
 
-
-
-
 class BookLookUpAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     @swagger_auto_schema(
         operation_description="ISBN으로 도서 정보 조회 (DB 없으면 알라딘 저장 후 반환)",
         manual_parameters=[
