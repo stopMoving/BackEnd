@@ -47,7 +47,7 @@ class DonationDisplaySerializer(BookInfoPublicBaseSerializer):
     class Meta(BookInfoPublicBaseSerializer.Meta):
         fields = ("isbn", "title", "author", "publisher")
 
-# (픽업 화면 전용) 정가 + 85% 판매가 포함
+# (픽업 화면 전용) 정가 + 85% 할인 판매가 포함
 from decimal import Decimal, ROUND_FLOOR
 DISCOUNT_RATE = Decimal("0.15")
 
@@ -56,9 +56,11 @@ class PickupDisplaySerializer(BookInfoPublicBaseSerializer):
 
     class Meta(BookInfoPublicBaseSerializer.Meta):
         # 요구사항: 제목, 저자, 출판사, 정가, 판매가, isbn
-        fields = ("isbn", "title", "author", "publisher", "regular_price", "sale_price")
+        fields = ("isbn", "title", "author", "publisher", "regular_price", "sale_price", "cover_url")
 
     def get_sale_price(self, obj):
+        # 정가 없으면 판매가는 고정 2000원
         if obj.regular_price is None:
-            return None
+            return 2000
+        # 정가 있으면 85% 내림
         return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))

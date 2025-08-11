@@ -11,7 +11,10 @@ from library.models import Library
 from bookinfo.models import BookInfo
 from bookinfo.serializers import DonationDisplaySerializer, PickupDisplaySerializer
 from bookinfo.services import ensure_bookinfo
+from django.db.models import Q, Count, F, Value
+from django.db.models.functions import Radians, Sin, Cos, ACo
 
+EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
 
 class DonationAPIView(APIView):
@@ -140,3 +143,11 @@ class PickupAPIView(APIView):
             "count_total": len(v["book_id"]),
             "items": results
         }, status=status.HTTP_200_OK)
+    
+class BookDetailAPIView(APIView):
+    def get(self, request, isbn):
+        # 책 정보 가져오기
+        try:
+            info = BookInfo.objects.get(isbn=isbn)
+        except BookInfo.DoesNotExist:
+            return Response({"detail": "존재하지 않는 ISBN입니다."}, status=status.HTTP_404_NOT_FOUND)

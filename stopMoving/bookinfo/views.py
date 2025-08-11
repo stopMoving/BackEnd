@@ -8,6 +8,7 @@ from rest_framework import status
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count, Q, Func, F, Value
 
 from .models import BookInfo
 from bookinfo.serializers import (
@@ -92,3 +93,54 @@ class BookLookUpAPIView(APIView):
             return PickupDisplaySerializer(obj).data
         # 기본: donation
         return DonationDisplaySerializer(obj).data
+
+class BookSearchAPIView(APIView):
+    @swagger_auto_schema(manual_parameters=[
+        openapi.Parameter('q', openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True, description="검색어"),
+        openapi.Parameter('page', openapi.IN_QUERY, type=openapi.TYPE_INTEGER, required=False),
+        openapi.Parameter('page_size', openapi.IN_QUERY, type=openapi.TYPE_INTEGER, required=False),
+    ])
+    def get(self, request):
+        q = request.GET.get('q', '').strip()
+        if not q:
+            return Response({"detail": "q는 필수입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        district = request.GET.get('district')  # 예: "동작구"
+        keywords = q.split()
+
+        # 공백 무시용 임시필드
+        base = BookInfo.objects.annotate(
+            title_no_space=Func(F('title'), Value(' '), Value(''), function='REPLACE')
+        )
+
+        # 단어 모두 포함(AND) + 공백무시 매칭
+        cond = Q()
+        for w in keywords:
+            nw = w.replace(' ', '')
+            cond &= (
+                Q(title__icontains=w) |
+                Q(author__icontains=w) |
+                Q(isbn__icontains=w) |
+                Q(title_no_space__icontains=nw)
+            )
+
+        qs = base.filter(cond).order_by('title')
+
+        # 페이지네이션
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('page_size', 20))
+        start, end = (page - 1) * page_size, page * page_size
+
+        # 프론트에 필요한 필드만 반환 (제목/저자/출판사/출간일/표지)
+        results = [{
+            "isbn": b.isbn,
+            "title": b.title,
+            "author": b.author,
+            "publisher": getattr(b, "publisher", None),
+            "pub_date": getattr(b, "pub_date", None),
+            "cover_url": getattr(b, "cover_url", None)
+        } for b in qs[start:end]]
+
+        return Response({"count": qs.count(), "results": results}, status=200)
+
+        

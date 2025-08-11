@@ -59,7 +59,7 @@ class BookIdListField(serializers.Field):
 
 class DonationSerializer(serializers.Serializer):
     library_id = serializers.IntegerField()
-    isbn = IsbnListField()  # ← 단/복수 모두 여기로
+    isbn = IsbnListField()  # 단/복수 모두 여기로
 
 class PickupSerializer(serializers.Serializer):
     book_id = BookIdListField()
