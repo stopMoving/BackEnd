@@ -75,10 +75,11 @@ class DonationAPIView(APIView):
 
 class PickupAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     @swagger_auto_schema(
-        operation_description="도서 일괄 픽업(단권/다권) — 입력은 library_id와 ISBN 리스트만",
+        operation_description="도서 픽업(단권/다권) — 입력은 book_id(정수 또는 정수 리스트)",
         request_body=PickupSerializer,
-        responses={200: "처리됨", 400: "검증 오류", 404: "도서관 없음"}
+        responses={200: "처리됨", 400: "검증 오류"}
     )
     def post(self, request):
         s = PickupSerializer(data=request.data)
@@ -90,45 +91,52 @@ class PickupAPIView(APIView):
             return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         results, success_cnt = [], 0
-        cache = {}
+        seen = set()  # 같은 id가 중복으로 올 때 중복 처리 방지
 
-        for isbn in v["isbn"]:
+        for bid in v["book_id"]:
+            if bid in seen:
+                results.append({"book_id": bid, "status": "SKIPPED", "message": "중복 요청"})
+                continue
+            seen.add(bid)
+
             with transaction.atomic():
-                info = cache.get(isbn) or ensure_bookinfo(isbn)
-                if not info:
-                    results.append({
-                        "isbn": isbn, "status": "ERROR",
-                        "code": "BOOKINFO_REQUIRED",
-                        "message": "도서 메타가 없습니다. 먼저 /bookinfo/lookup을 호출하세요."
-                    })
-                    continue
-                cache[isbn] = info
-
-                # 재고 잠그고 1권 가져오기
+                # 재고 한 권을 잠그고 가져오기
                 book = (Book.objects
                         .select_for_update()
-                        .filter(library=library, isbn=info, status="AVAILABLE")
-                        .order_by("donation_date")
+                        .select_related("isbn", "library")
+                        .filter(id=bid)
                         .first())
+
                 if not book:
-                    results.append({"isbn": isbn, "status": "ERROR", "message": "재고 없음"})
+                    results.append({"book_id": bid, "status": "ERROR", "code": "NOT_FOUND", "message": "해당 책 없음"})
                     continue
 
+                if book.status != "AVAILABLE":
+                    results.append({
+                        "book_id": bid, "status": "ERROR", "code": "NOT_AVAILABLE",
+                        "message": f"현재 상태: {book.status}"
+                    })
+                    continue
+
+                # 상태 전환
                 book.status = "PICKED"
                 book.save(update_fields=["status"])
 
+                info = book.isbn  # BookInfo
                 success_cnt += 1
                 results.append({
-                    "isbn": info.isbn,
                     "book_id": book.id,
+                    "library_id": book.library_id,
                     "status": "PICKED",
-                    "book_info": PickupDisplaySerializer(info).data  # regular_price + sale_price(85%할인), #정가 정보 없으면 고정 2000원
+                    # 정가 없으면 PickupDisplaySerializer가 sale_price=2000으로 내려줌
+                    "book_info": PickupDisplaySerializer(info).data
                 })
 
+                
+
         return Response({
-            "message": "일괄 픽업 처리 완료",
-            "library_id": library.id,
+            "message": "픽업 처리 완료",
             "count_success": success_cnt,
-            "count_total": len(v["isbn"]),
+            "count_total": len(v["book_id"]),
             "items": results
         }, status=status.HTTP_200_OK)
