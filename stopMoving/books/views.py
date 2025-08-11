@@ -12,10 +12,12 @@ from bookinfo.models import BookInfo
 from bookinfo.serializers import DonationDisplaySerializer, PickupDisplaySerializer
 from bookinfo.services import ensure_bookinfo
 from django.db.models import Q, Count, F, Value
-from django.db.models.functions import Radians, Sin, Cos, ACo
+from math import radians, sin, cos, acos
+from decimal import Decimal
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
+DISCOUNT_RATE = Decimal("0.15")
 
 class DonationAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -135,8 +137,6 @@ class PickupAPIView(APIView):
                     "book_info": PickupDisplaySerializer(info).data
                 })
 
-                
-
         return Response({
             "message": "픽업 처리 완료",
             "count_success": success_cnt,
@@ -151,3 +151,61 @@ class BookDetailAPIView(APIView):
             info = BookInfo.objects.get(isbn=isbn)
         except BookInfo.DoesNotExist:
             return Response({"detail": "존재하지 않는 ISBN입니다."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # 도서관 별 책 집계
+        qs = (
+            Book.objects
+            .filter(isbn__isbn=isbn)
+            .values('library_id', 'library__name', 'library__lat', 'library__long')
+            .annotate(
+                total_books=Count('id'),
+                available_books=Count('id', filter=Q(status='AVAILABLE')),
+            )
+        )
+        
+        # 사용자 위치 받음
+        lat = request.GET.get("lat")
+        long = request.GET.get("long")
+        try:
+            lat = float(lat) if lat is not None else None
+            long = float(long) if long is not None else None
+        except ValueError:
+            return Response({"detail": "lat/long 숫자여야 합니다."}, status=400)
+        
+        # 도서관~사용자 거리계산
+        lat = request.GET.get("lat"); lng = request.GET.get("lng")
+        try:
+            lat = float(lat) if lat is not None else None
+            lng = float(lng) if lng is not None else None
+        except ValueError:
+            return Response({"detail": "lat/lng는 숫자여야 합니다."}, status=400)
+
+        
+        libraries = []
+        for row in qs:
+            la = row['library__lat']
+            lo = row['library__long']  # 🔁 모델 필드명이 long임
+            d_m = None
+            if lat is not None and lng is not None and la is not None and lo is not None:
+                φ1, φ2 = radians(lat), radians(float(la))
+                Δλ = radians(float(lo) - lng)
+                dist_km = acos(cos(φ1)*cos(φ2)*cos(Δλ) + sin(φ1)*sin(φ2)) * EARTH_KM
+                d_m = int(round(dist_km * 1000))
+
+            libraries.append({
+                "library_id": row["library_id"],
+                "name": row["library__name"],
+                "distance_m": d_m,                 # 좌표 없으면 None
+                "total_books": row["total_books"],
+                "available_books": row["available_books"],
+            })
+
+        # 5) 거리 기준 정렬 (있으면 앞으로)
+        if lat is not None and lng is not None:
+            libraries.sort(key=lambda x: (x["distance_m"] is None, x["distance_m"] or 0))
+
+        # 6) 책 메타 + 도서관 목록
+        info_data = PickupDisplaySerializer(info).data
+        return Response({**info_data, "summary": getattr(info, "summary", None), "libraries": libraries}, status=200)
+
+        
