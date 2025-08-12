@@ -135,12 +135,26 @@ class PickupAPIView(APIView):
                     "book_info": PickupDisplaySerializer(info).data
                 })
 
+        # 실제 시도한(중복 제거된) 건수로 계산
+        attempted_cnt = len(seen)
+
+        
+        if success_cnt == 0:
+            msg = "픽업 실패"
+            http_status = status.HTTP_409_CONFLICT
+        elif success_cnt < attempted_cnt:
+            msg = "일부 픽업 처리"
+            http_status = status.HTTP_207_MULTI_STATUS
+        else:
+            msg = "픽업 처리 완료"
+            http_status = status.HTTP_200_OK
+
         return Response({
-            "message": "픽업 처리 완료",
+            "message": msg,                         
             "count_success": success_cnt,
-            "count_total": len(v["book_id"]),
+            "count_total": attempted_cnt,           
             "items": results
-        }, status=status.HTTP_200_OK)
+        }, status=http_status)      
 
 # 책 검색 목록에서 책을 선택했을 때
 class BookDetailAPIView(APIView):
