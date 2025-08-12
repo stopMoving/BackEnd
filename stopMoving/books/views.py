@@ -19,6 +19,7 @@ EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
 DISCOUNT_RATE = Decimal("0.15")
 
+# 책 나눔하기 마지막에 나눔하기 버튼
 class DonationAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -77,7 +78,7 @@ class DonationAPIView(APIView):
             "items": results
         }, status=status.HTTP_201_CREATED)
 
-
+# 책 가져가기 마지막에 가져가기 버튼
 class PickupAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -90,10 +91,6 @@ class PickupAPIView(APIView):
         s = PickupSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         v = s.validated_data
-
-        library = Library.objects.filter(id=v["library_id"]).first()
-        if not library:
-            return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         results, success_cnt = [], 0
         seen = set()  # 같은 id가 중복으로 올 때 중복 처리 방지
@@ -143,7 +140,8 @@ class PickupAPIView(APIView):
             "count_total": len(v["book_id"]),
             "items": results
         }, status=status.HTTP_200_OK)
-    
+
+# 책 검색 목록에서 책을 선택했을 때
 class BookDetailAPIView(APIView):
     def get(self, request, isbn):
         # 책 정보 가져오기
@@ -184,7 +182,7 @@ class BookDetailAPIView(APIView):
         libraries = []
         for row in qs:
             la = row['library__lat']
-            lo = row['library__long']  # 🔁 모델 필드명이 long임
+            lo = row['library__long']  
             d_m = None
             if lat is not None and lng is not None and la is not None and lo is not None:
                 φ1, φ2 = radians(lat), radians(float(la))

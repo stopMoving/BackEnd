@@ -19,6 +19,7 @@ from bookinfo.serializers import (
 
 class BookLookUpAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     @swagger_auto_schema(
         operation_description="ISBN으로 도서 정보 조회 (DB 없으면 알라딘 저장 후 반환)",
         manual_parameters=[
@@ -95,6 +96,7 @@ class BookLookUpAPIView(APIView):
         return DonationDisplaySerializer(obj).data
 
 class BookSearchAPIView(APIView):
+    
     @swagger_auto_schema(manual_parameters=[
         openapi.Parameter('q', openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True, description="검색어"),
         openapi.Parameter('page', openapi.IN_QUERY, type=openapi.TYPE_INTEGER, required=False),
