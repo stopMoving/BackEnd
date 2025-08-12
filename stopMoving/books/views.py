@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
 from .serializers import DonationSerializer, PickupSerializer
 from .models import Book
@@ -19,6 +20,7 @@ EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
 DISCOUNT_RATE = Decimal("0.15")
 
+# 책 나눔하기 마지막에 나눔하기 버튼
 class DonationAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -77,7 +79,7 @@ class DonationAPIView(APIView):
             "items": results
         }, status=status.HTTP_201_CREATED)
 
-
+# 책 가져가기 마지막에 가져가기 버튼
 class PickupAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -90,10 +92,6 @@ class PickupAPIView(APIView):
         s = PickupSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         v = s.validated_data
-
-        library = Library.objects.filter(id=v["library_id"]).first()
-        if not library:
-            return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         results, success_cnt = [], 0
         seen = set()  # 같은 id가 중복으로 올 때 중복 처리 방지
@@ -137,14 +135,39 @@ class PickupAPIView(APIView):
                     "book_info": PickupDisplaySerializer(info).data
                 })
 
+        # 실제 시도한(중복 제거된) 건수로 계산
+        attempted_cnt = len(seen)
+
+        
+        if success_cnt == 0:
+            msg = "픽업 실패"
+            http_status = status.HTTP_409_CONFLICT
+        elif success_cnt < attempted_cnt:
+            msg = "일부 픽업 처리"
+            http_status = status.HTTP_207_MULTI_STATUS
+        else:
+            msg = "픽업 처리 완료"
+            http_status = status.HTTP_200_OK
+
         return Response({
-            "message": "픽업 처리 완료",
+            "message": msg,                         
             "count_success": success_cnt,
-            "count_total": len(v["book_id"]),
+            "count_total": attempted_cnt,           
             "items": results
-        }, status=status.HTTP_200_OK)
-    
+        }, status=http_status)      
+
+# 책 검색 목록에서 책을 선택했을 때
 class BookDetailAPIView(APIView):
+    @swagger_auto_schema(
+        operation_description="ISBN으로 책 메타 + 도서관별 재고 및 거리 조회",
+        manual_parameters=[
+            openapi.Parameter('isbn', openapi.IN_PATH, type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter('lat', openapi.IN_QUERY, type=openapi.TYPE_NUMBER, required=False, description="사용자 위도"),
+            openapi.Parameter('lng', openapi.IN_QUERY, type=openapi.TYPE_NUMBER, required=False, description="사용자 경도"),
+        ],
+        responses={200: 'OK', 404: '존재하지 않는 ISBN', 400: '요청 오류'}
+    )
+
     def get(self, request, isbn):
         # 책 정보 가져오기
         try:
@@ -164,27 +187,19 @@ class BookDetailAPIView(APIView):
         )
         
         # 사용자 위치 받음
-        lat = request.GET.get("lat")
-        long = request.GET.get("long")
+        lat_str = request.GET.get("lat")
+        lng_str = request.GET.get("lng")
         try:
-            lat = float(lat) if lat is not None else None
-            long = float(long) if long is not None else None
+            lat = float(lat_str) if lat_str is not None else None
+            lng = float(lng_str) if lng_str is not None else None
         except ValueError:
-            return Response({"detail": "lat/long 숫자여야 합니다."}, status=400)
+            return Response({"detail": "lat/lng 숫자여야 합니다."}, status=400)
         
-        # 도서관~사용자 거리계산
-        lat = request.GET.get("lat"); lng = request.GET.get("lng")
-        try:
-            lat = float(lat) if lat is not None else None
-            lng = float(lng) if lng is not None else None
-        except ValueError:
-            return Response({"detail": "lat/lng는 숫자여야 합니다."}, status=400)
-
-        
+        # 거리 계산
         libraries = []
         for row in qs:
             la = row['library__lat']
-            lo = row['library__long']  # 🔁 모델 필드명이 long임
+            lo = row['library__long']  
             d_m = None
             if lat is not None and lng is not None and la is not None and lo is not None:
                 φ1, φ2 = radians(lat), radians(float(la))
@@ -208,4 +223,32 @@ class BookDetailAPIView(APIView):
         info_data = PickupDisplaySerializer(info).data
         return Response({**info_data, "summary": getattr(info, "summary", None), "libraries": libraries}, status=200)
 
+class PickUpBookDetailAPIView(APIView):
+    """
+    스캔으로 받은 book_id(개별 권)로 상세 조회 (DB only)
+    GET /api/books/{book_id}/
+    """
+    permission_classes = [IsAuthenticated]
+    @swagger_auto_schema(
+        operation_description="스캔한 book_id로 픽업용 상세 조회",
+        manual_parameters=[
+            openapi.Parameter('book_id', openapi.IN_PATH, type=openapi.TYPE_INTEGER, required=True),
+        ],
+        responses={200: 'OK', 404: '없음', 400: '요청 오류'}
+    )
+
+    def get(self, request, book_id: int):
+        try:
+            b = Book.objects.select_related('isbn').get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "해당 book_id가 없습니다."}, status=404)
+        
+        info_data = PickupDisplaySerializer(b.isbn).data
+
+        data = {
+            **info_data,
+            "status": b.status,
+            "is_pickable": (b.status == "AVAILABLE")
+        }
+        return Response(data, status=200)
         
