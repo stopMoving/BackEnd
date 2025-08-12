@@ -17,20 +17,19 @@ from bookinfo.serializers import (
     BookInfoUpsertSerializer,
 )
 
-class BookLookUpAPIView(APIView):
+# 책 기증할 때 책 정보 불러오는 API
+class DonateBookLookUpAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        operation_description="ISBN으로 도서 정보 조회 (DB 없으면 알라딘 저장 후 반환)",
-        manual_parameters=[
-            openapi.Parameter('isbn', openapi.IN_QUERY, description="ISBN(10/13자리, 하이픈 허용)", type=openapi.TYPE_STRING, required=True),
-            openapi.Parameter('purpose', openapi.IN_QUERY, description="용도(donation | pickup)", type=openapi.TYPE_STRING, required=False),
-        ],
-        responses={200: 'DB 조회 성공', 201: '알라딘 조회 후 생성', 400: '잘못된 요청', 404: '결과 없음', 502: '외부 API 오류'}
+        operation_description="ISBN으로 도서 메타 조회 (DB 없으면 알라딘 저장 후 반환)",
+        manual_parameters=[openapi.Parameter('isbn', openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True)],
+        responses={200: 'DB 조회', 201: '알라딘 조회 후 생성', 400: '형식 오류', 404: '없음', 502: '외부 오류'}
     )
+
     def get(self, request):
         raw = request.query_params.get('isbn')
-        purpose = (request.query_params.get('purpose') or 'donation').lower()
+        
         if not raw:
             return Response({"error": "ISBN이 필요합니다."}, status=400)
 
@@ -39,9 +38,9 @@ class BookLookUpAPIView(APIView):
             return Response({"error": "ISBN 형식이 올바르지 않습니다(10 또는 13자리)."}, status=400)
 
         # 1) DB 먼저
-        book = BookInfo.objects.filter(isbn=isbn).first()
-        if book:
-            data = self._serialize_for_purpose(book, purpose)
+        obj = BookInfo.objects.filter(isbn=isbn).first()
+        if obj:
+            data = DonationDisplaySerializer(obj).data
             data["meta"] = {"source": "db"}
             return Response(data, status=200)
 
@@ -85,15 +84,11 @@ class BookLookUpAPIView(APIView):
         except IntegrityError:
             obj = BookInfo.objects.get(isbn=isbn)
 
-        out = self._serialize_for_purpose(obj, purpose)
-        out["meta"] = {"source": "aladin"}
-        return Response(out, status=201)
+        data = DonationDisplaySerializer(obj).data
+        data["meta"] = {"source": "aladin"}
+        return Response(data, status=201)
 
-    def _serialize_for_purpose(self, obj, purpose: str) -> dict:
-        if purpose == "pickup":
-            return PickupDisplaySerializer(obj).data
-        # 기본: donation
-        return DonationDisplaySerializer(obj).data
+    
 
 class BookSearchAPIView(APIView):
     
