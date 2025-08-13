@@ -2,6 +2,7 @@
 import re
 from rest_framework import serializers
 from .models import BookInfo
+from books.serializers import IsbnListField
 
 # (공통 베이스) 응답 기본 스키마
 class BookInfoPublicBaseSerializer(serializers.ModelSerializer):
@@ -71,3 +72,20 @@ class BookSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = BookInfo
         fields = ["isbn", "title", "author", "publisher", "cover_url"]
+
+class BookDetailDisplaySerializer(BookInfoPublicBaseSerializer):
+    sale_price = serializers.SerializerMethodField()
+
+    class Meta(BookInfoPublicBaseSerializer.Meta):
+        # 요구사항: 제목, 저자, 출판사, 정가, 판매가, isbn
+        fields = ("isbn", "title", "author", "publisher", "regular_price", "sale_price", "cover_url","description")
+
+    def get_sale_price(self, obj):
+        # 정가 없으면 판매가는 고정 2000원
+        if obj.regular_price is None:
+            return 2000
+        # 정가 있으면 85% 내림
+        return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
+    
+class BookInfoSerializer(serializers.Serializer):
+    isbn = IsbnListField()  # 단/복수 모두 여기로
