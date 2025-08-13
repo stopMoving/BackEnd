@@ -4,7 +4,7 @@ from django.db import IntegrityError
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
@@ -17,6 +17,7 @@ from bookinfo.serializers import (
     DonationDisplaySerializer,
     PickupDisplaySerializer,
     BookInfoUpsertSerializer,
+    BookSummarySerializer,
     BookInfoSerializer
 )
 
@@ -180,3 +181,16 @@ class BookInfoBulkAPIView(APIView):
 
 
         
+# 설문조사 시 책 목록 보여주기용
+class BookListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    @swagger_auto_schema(
+        operation_summary="전체 책 목록(간략) 조회",
+        operation_description="설문용 카드 목록. isbn, title, author, publisher, cover_url만 반환합니다.",
+        responses={200: BookSummarySerializer(many=True)}
+    )
+    def get(self, request):
+        qs = BookInfo.objects.all().order_by("title")
+        data = BookSummarySerializer(qs, many=True).data
+        return Response(data)

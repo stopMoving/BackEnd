@@ -6,7 +6,7 @@ from books.models import Book
 class LibraryInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Library
-        fields = ['id', 'name', 'address', 'contact', 'closed_days', 'hours_of_use', 'sns']
+        fields = ['id', 'name', 'address', 'contact', 'closed_days', 'hours_of_use', 'sns', 'lat', 'long']
 
 class LibraryHoldingItemSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source="isbn.title")
