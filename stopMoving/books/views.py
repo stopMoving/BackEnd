@@ -10,7 +10,7 @@ from .serializers import DonationSerializer, PickupSerializer
 from .models import Book
 from library.models import Library
 from bookinfo.models import BookInfo
-from bookinfo.serializers import DonationDisplaySerializer, PickupDisplaySerializer
+from bookinfo.serializers import DonationDisplaySerializer, PickupDisplaySerializer, BookDetailDisplaySerializer
 from bookinfo.services import ensure_bookinfo
 from django.db.models import Q, Count, F, Value
 from math import radians, sin, cos, acos
@@ -205,6 +205,7 @@ class BookDetailAPIView(APIView):
                 total_books=Count('id'),
                 available_books=Count('id', filter=Q(status='AVAILABLE')),
             )
+            .filter(available_books__gt=0)
         )
         
         # 사용자 위치 받음
@@ -241,8 +242,8 @@ class BookDetailAPIView(APIView):
             libraries.sort(key=lambda x: (x["distance_m"] is None, x["distance_m"] or 0))
 
         # 6) 책 메타 + 도서관 목록
-        info_data = PickupDisplaySerializer(info).data
-        return Response({**info_data, "summary": getattr(info, "summary", None), "libraries": libraries}, status=200)
+        info_data = BookDetailDisplaySerializer(info).data
+        return Response({**info_data, "libraries": libraries}, status=200)
 
 class PickUpBookDetailAPIView(APIView):
     """
