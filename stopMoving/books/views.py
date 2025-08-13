@@ -144,7 +144,7 @@ class PickupAPIView(APIView):
                 UserBook.objects.get_or_create(
                     user=request.user,
                     book=book,
-                    defaults={"status": Status.PICKED},
+                    defaults={"status": Status.PURCHASED},
                 )
                 info = book.isbn  # BookInfo
                 success_cnt += 1
