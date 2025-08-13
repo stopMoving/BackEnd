@@ -9,12 +9,15 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q, Func, F, Value
+from .services import ensure_bookinfo
+
 
 from .models import BookInfo
 from bookinfo.serializers import (
     DonationDisplaySerializer,
     PickupDisplaySerializer,
     BookInfoUpsertSerializer,
+    BookInfoSerializer
 )
 
 # 책 기증할 때 책 정보 불러오는 API
@@ -139,5 +142,39 @@ class BookSearchAPIView(APIView):
         } for b in qs[start:end]]
 
         return Response({"count": qs.count(), "results": results}, status=200)
+    
+
+class BookInfoBulkAPIView(APIView):
+    def get(self, request):
+        s = BookInfoSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        v = s.validated_data
+
+        results = []
+        cache = {}
+
+        for isbn in v["isbn"]:
+            try:
+                info = cache.get(isbn) or ensure_bookinfo(isbn)
+                if not info:
+                    results.append({
+                        "isbn": isbn,
+                        "status": "ERROR",
+                        "code": "BOOKINFO_REQUIRED",
+                        "message": "책 정보가 없습니다."
+                    })
+                    continue
+                cache[isbn] = info
+
+                results.append({
+                    "isbn": info.isbn,
+                    "status": "CREATED",
+                    "book_info": DonationDisplaySerializer(info).data
+                })
+            except Exception as e:
+                results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
+
+        return Response(results, status=status.HTTP_201_CREATED)
+
 
         
