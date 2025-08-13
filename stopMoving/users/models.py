@@ -32,8 +32,14 @@ class UserBook(models.Model):
         max_length=20,
         choices=Status.choices,   # Enum 연결
     )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
-        unique_together = (('user', 'book'),)
+        unique_together = (('user', 'book'),) # 기증한 책을 기증자가 못가져감 -> 삭제 시 기증자가 기증한 책 가져갈 수 있음
+        
+        indexes = [
+            models.Index(fields=["user", "status", "created_at"]),
+            models.Index(fields=["book", "created_at"]),
+        ]
       
 
