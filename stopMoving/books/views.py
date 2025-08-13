@@ -15,6 +15,8 @@ from bookinfo.services import ensure_bookinfo
 from django.db.models import Q, Count, F, Value
 from math import radians, sin, cos, acos
 from decimal import Decimal
+from django.db import transaction
+from users.models import UserInfo
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -69,6 +71,12 @@ class DonationAPIView(APIView):
                 })
             except Exception as e:
                 results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
+            
+            # 유저 포인트 증가 로직
+            if request.user.is_authenticated and success_cnt > 0:
+                user_info, _ = UserInfo.objects.get_or_create(user=request.user)
+                user_info.points += success_cnt * POINT_PER_BOOK
+                user_info.save(update_fields=["points"])
 
         return Response({
             "message": "일괄 기증 처리 완료",
