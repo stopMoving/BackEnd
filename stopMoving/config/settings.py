@@ -75,7 +75,6 @@ PROJECT_APPS = [
     'users', # 유저 정보
     'books', # 책 객체
     'books.management.commands', # 커맨드 추가
-
 ]
 
 THIRD_PARTY_APPS = [ 
