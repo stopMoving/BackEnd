@@ -37,5 +37,6 @@ urlpatterns = [
     path('bookinfo/', include('bookinfo.urls')), # bookinfo 앱의 URL 포함
     path('accounts/', include('accounts.urls')), # accounts 앱의 URL 포함
     path('books/', include('books.urls')), # books 앱의 URL 포함
+    path('library/', include('library.urls')), # library 앱의 URL 포함
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
