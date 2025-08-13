@@ -75,8 +75,6 @@ PROJECT_APPS = [
     'users', # 유저 정보
     'books', # 책 객체
     'books.management.commands', # 커맨드 추가
-    'surveys', # 설문조사
-    'recommendations', # 추천 시스템
 ]
 
 THIRD_PARTY_APPS = [ 
