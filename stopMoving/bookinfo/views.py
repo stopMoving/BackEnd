@@ -143,8 +143,10 @@ class BookSearchAPIView(APIView):
 
         return Response({"count": qs.count(), "results": results}, status=200)
     
-
+# 책 나눔하기 누르기전에 최종 책 확인 API
 class BookInfoBulkAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
         s = BookInfoSerializer(data=request.data)
         s.is_valid(raise_exception=True)
