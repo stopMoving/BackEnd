@@ -64,3 +64,10 @@ class PickupDisplaySerializer(BookInfoPublicBaseSerializer):
             return 2000
         # 정가 있으면 85% 내림
         return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
+
+# (책 요약용) 책 정보 요약
+# 책 목록 조회, 검색 결과 등에서 사용
+class BookSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookInfo
+        fields = ["isbn", "title", "author", "publisher", "cover_url"]

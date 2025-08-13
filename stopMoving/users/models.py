@@ -8,6 +8,8 @@ class UserInfo(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     preference_keyword = models.JSONField(null=True, blank=True)
     preference_vector = models.JSONField(null=True, blank=True)
+    survey_done = models.BooleanField(default=False)
+    last_survey_at = models.DateTimeField(blank=True, null=True)
     points = models.BigIntegerField(default=0)
 
 class Status(models.TextChoices):
