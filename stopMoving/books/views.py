@@ -16,7 +16,7 @@ from django.db.models import Q, Count, F, Value
 from math import radians, sin, cos, acos
 from decimal import Decimal
 from django.db import transaction
-from users.models import UserInfo
+from users.models import UserInfo, UserBook, Status
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -62,6 +62,13 @@ class DonationAPIView(APIView):
                     regular_price=info.regular_price,  # 정가 정보 없으면 None 저장
                     donor_user=request.user if request.user.is_authenticated else None,
                 )
+
+                UserBook.objects.get_or_create(
+                    user=request.user,
+                    book=book,
+                    defaults={"status": Status.DONATED},
+                )
+
                 success_cnt += 1
                 results.append({
                     "isbn": info.isbn,
@@ -73,9 +80,10 @@ class DonationAPIView(APIView):
                 results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
             
             # 유저 포인트 증가 로직
+            points_earned = success_cnt * POINT_PER_BOOK
             if request.user.is_authenticated and success_cnt > 0:
                 user_info, _ = UserInfo.objects.get_or_create(user=request.user)
-                user_info.points += success_cnt * POINT_PER_BOOK
+                user_info.points = (user_info.points or 0) + points_earned
                 user_info.save(update_fields=["points"])
 
         return Response({
@@ -133,6 +141,11 @@ class PickupAPIView(APIView):
                 book.status = "PICKED"
                 book.save(update_fields=["status"])
 
+                UserBook.objects.get_or_create(
+                    user=request.user,
+                    book=book,
+                    defaults={"status": Status.PURCHASED},
+                )
                 info = book.isbn  # BookInfo
                 success_cnt += 1
                 results.append({
