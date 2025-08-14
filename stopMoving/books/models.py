@@ -10,6 +10,7 @@ class Book(models.Model):
         ("AVAILABLE", "구매가능"),
         ("PICKED", "구매불가"),
         ("EXPIRED", "만료"),
+        ("REVERVATIONED","예약"),
     ]
     
     # pk

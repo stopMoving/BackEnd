@@ -46,7 +46,7 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
 # (나눔 화면 전용) 필요한 필드만
 class DonationDisplaySerializer(BookInfoPublicBaseSerializer):
     class Meta(BookInfoPublicBaseSerializer.Meta):
-        fields = ("isbn", "title", "author", "publisher")
+        fields = ("isbn", "title", "author", "publisher", "cover_url","published_date")
 
 # (픽업 화면 전용) 정가 + 85% 할인 판매가 포함
 from decimal import Decimal, ROUND_FLOOR
