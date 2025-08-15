@@ -14,21 +14,21 @@ from django.db.models import F, Q
 # 도서관별 책 권수
 class LibraryBookStock(models.Model):
     library = models.ForeignKey(Library, on_delete=models.CASCADE)
-    book_info = models.ForeignKey(BookInfo, on_delete=models.CASCADE)
+    isbn = models.ForeignKey(BookInfo, on_delete=models.CASCADE)
     total_count = models.IntegerField()  # 총 보유 수량
     available_count = models.IntegerField()  # 현재 가능 수량
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=('library', 'book_info'), name='uniq_library_book'),
+            models.UniqueConstraint(fields=('library', 'isbn'), name='uniq_library_book'),
             models.CheckConstraint(check=Q(total_count__gte=0), name='chk_total_nonneg'), # 총권수가 0 이상  
             models.CheckConstraint(check=Q(available_count__gte=0), name='chk_available_nonneg'), # 가능한 권수가 0 이상
             models.CheckConstraint(check=Q(available_count__lte=F('total_count')), name='chk_available_le_total'), # availalbe한 책이 total보다 작거나 같음
         ]
-        indexes = [models.Index(fields=['library', 'book_info'])]
+        indexes = [models.Index(fields=['library', 'isbn'])]
     
     def __str__(self):
-        return f"{self.library.name} - {self.book_info.title} ({self.available_count}/{self.total_count})"
+        return f"{self.library.name} - {self.isbn.title} ({self.available_count}/{self.total_count})"
 
 # 상태
 class ReservationStatus(models.TextChoices):
@@ -68,11 +68,11 @@ class BookReservation(models.Model):
         return super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.user.username} - {self.book_stock.book_info.title} x{self.quantity} ({self.status})"
+        return f"{self.user.username} - {self.book_stock.isbn.title} x{self.quantity} ({self.status})"
 
 # 예약 요청 시 예약 테이블 생성
 # 키워드 파라미터 사용 예약시 기본 수량은 1로 고정
-def create_reservation(*, user=User, library=Library, book_info=BookInfo, quantity: int = 1) -> BookReservation:
+def create_reservation(*, user=User, library=Library, isbn=BookInfo, quantity: int = 1) -> BookReservation:
     if quantity < 1:
         raise ValidationError("수량은 1이상이어야 합니다.")
     
@@ -80,7 +80,7 @@ def create_reservation(*, user=User, library=Library, book_info=BookInfo, quanti
         try:
             stock = (LibraryBookStock.objects
                      .select_for_update()
-                     .get(library=library, book_info=book_info))
+                     .get(library=library, isbn=isbn))
         except LibraryBookStock.DoesNotExist:
             raise ValidationError("해당 도서관에 책이 존재하지 않습니다.")
         
