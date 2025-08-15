@@ -4,15 +4,15 @@ from .models import LibraryBookStock, BookReservation, ReservationStatus
 
 @admin.register(LibraryBookStock)
 class LibraryBookStockAdmin(admin.ModelAdmin):
-    list_display = ('library', 'book_info', 'available_count', 'total_count')
+    list_display = ('library', 'isbn', 'available_count', 'total_count')
     list_filter = ('library',)
-    search_fields = ('library__name', 'book_info__title', 'book_info__isbn')
+    search_fields = ('library__name', 'isbn__title', 'isbn__isbn')
 
 @admin.register(BookReservation)
 class BookReservationAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'book_stock', 'quantity', 'status', 'reserved_at', 'expires_at')
     list_filter = ('status', 'reserved_at', 'expires_at')
-    search_fields = ('user__username', 'book_stock__book_info__title', 'book_stock__library__name')
+    search_fields = ('user__username', 'book_stock__isbn__title', 'book_stock__library__name')
     actions = ['mark_expired']
 
     @admin.action(description="선택 항목 만료 처리(재고 복구)")

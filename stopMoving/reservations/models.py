@@ -72,7 +72,7 @@ class BookReservation(models.Model):
 
 # 예약 요청 시 예약 테이블 생성
 # 키워드 파라미터 사용 예약시 기본 수량은 1로 고정
-def create_reservation(*, user=User, library=Library, isbn=BookInfo, quantity: int = 1) -> BookReservation:
+def create_reservation(*, user:User, library:Library, isbn:BookInfo, quantity: int = 1) -> BookReservation:
     if quantity < 1:
         raise ValidationError("수량은 1이상이어야 합니다.")
     
@@ -99,7 +99,7 @@ def create_reservation(*, user=User, library=Library, isbn=BookInfo, quantity: i
 
         return reservation
 
-def cancel_reservation(*, user=User, reservation_id: int) -> BookReservation:
+def cancel_reservation(*, user:User, reservation_id: int) -> BookReservation:
     """예약 전체 취소 - 수량만큼 재고 복구"""
     with transaction.atomic():
         try:
@@ -116,7 +116,7 @@ def cancel_reservation(*, user=User, reservation_id: int) -> BookReservation:
         reservation.save(update_fields=['status', 'updated_at'])
         return reservation
 
-def pick_up_reservation(*, user=User, reservation_id:int) -> bool:
+def pick_up_reservation(*, user:User, reservation_id:int) -> bool:
     """픽업 완료 -> 재고 복구 없이 상태 변경만"""
     with transaction.atomic():
         try:

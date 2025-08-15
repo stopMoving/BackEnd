@@ -9,7 +9,7 @@ from .models import BookReservation
 from .serializers import (
     CreateReservationSerializer,
     ReservationCancelSerializer,
-    ReservationPickupSerializer,
+    ReservationPickUpSerializer,
     ReservationListItemSerializer,
 )
 
@@ -25,12 +25,13 @@ class BookReservationView(APIView):
 
         try:
             reservation = s.save()
+            reservation.book_stock.refresh_from_db(fields=['available_count'])
             data = {
                 "message": "예약이 완료되었습니다.",
                 "reservation_id": reservation.id,
                 "quantity": reservation.quantity,
                 "expires_at": reservation.expires_at,
-                "book_title": reservation.book_stock.book_info.title,
+                "book_title": reservation.book_stock.isbn.title,
                 "library_name": reservation.book_stock.library.name,
             }
             return Response(data, status=status.HTTP_201_CREATED)
@@ -48,11 +49,12 @@ class ReservationCancelView(APIView):
             return Response(s.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            resv = s.save()
+            reservation = s.save()
+            reservation.book_stock.refresh_from_db(fields=['available_count'])
             return Response({
                 "message": "예약이 취소되었습니다.",
-                "reservation_id": resv.id,
-                "quantity_refunded": resv.quantity
+                "reservation_id": reservation.id,
+                "quantity_refunded": reservation.quantity
             })
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -63,7 +65,7 @@ class ReservationPickupView(APIView):
 
     def post(self, request, reservation_id):
         """픽업 완료 처리"""
-        s = ReservationPickupSerializer(data={"reservation_id": reservation_id}, context={'request': request})
+        s = ReservationPickUpSerializer(data={"reservation_id": reservation_id}, context={'request': request})
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -81,7 +83,7 @@ class UserReservationsView(APIView):
         """내 예약 목록"""
         qs = (BookReservation.objects
               .filter(user=request.user)
-              .select_related('book_stock__book_info', 'book_stock__library')
+              .select_related('book_stock__isbn', 'book_stock__library')
               .order_by('-reserved_at'))
         data = ReservationListItemSerializer(qs, many=True).data
         return Response(data)

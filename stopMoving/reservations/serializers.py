@@ -7,7 +7,7 @@ from .models import BookReservation, cancel_reservation, create_reservation, pic
 # 예약 생성
 class CreateReservationSerializer(serializers.Serializer):
     library_id = serializers.IntegerField()
-    bookinfo_id = serializers.IntegerField()
+    isbn = serializers.CharField()
     quantity = serializers.IntegerField(required=False, default=1, min_value=1)
 
     def create(self, data):
@@ -22,7 +22,7 @@ class CreateReservationSerializer(serializers.Serializer):
             quantity=data['quantity']
         )
 
-class ReservationCancelSerailizer(serializers.Serializer):
+class ReservationCancelSerializer(serializers.Serializer):
     reservation_id = serializers.IntegerField()
 
     def create(self, data):
@@ -41,7 +41,7 @@ class ReservationPickUpSerializer(serializers.Serializer):
 
 # 예약 목록
 class ReservationListItemSerializer(serializers.ModelSerializer):
-    book_title = serializers.CharField(source='book_stock.book_info.title')
+    book_title = serializers.CharField(source='book_stock.isbn.title')
     library_name = serializers.CharField(source='book_stock.library.name')
     
 
