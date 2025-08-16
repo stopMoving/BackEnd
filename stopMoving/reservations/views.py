@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-
+from users.models import UserBook, Status
 from .models import BookReservation
+from books.models import Book
+from django.db import transaction
 from .serializers import (
     CreateReservationSerializer,
     ReservationCancelSerializer,
@@ -68,9 +70,25 @@ class ReservationPickupView(APIView):
         s = ReservationPickUpSerializer(data={"reservation_id": reservation_id}, context={'request': request})
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        with transaction.atomic():
+            resv = get_object_or_404(
+                BookReservation.objects.select_related('book_stock__library', 'book_stock__isbn'),
+                id=reservation_id, user=request.user
+            )
 
+
+            
+        
         try:
             s.save()
+
+            UserBook.objects.get_or_create(
+                    user=request.user,
+                    # book=book,
+                    defaults={"status": Status.PURCHASED},
+                )
+            
             return Response({"message": "픽업 완료되었습니다.", "reservation_id": reservation_id})
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
