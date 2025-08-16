@@ -3,6 +3,9 @@
 from __future__ import annotations
 import re
 from typing import List
+import json, os, re, math
+from typing import List, Dict, Tuple
+from collections import Counter, defaultdict
 
 # ====== 모델 로딩 (한 번만) ======
 from sentence_transformers import SentenceTransformer
@@ -38,7 +41,7 @@ KOREAN_STOPWORDS = {
     "등", "등등", "요", "게", "데", "고", "라", "다", "것", "수", "들",
 }
 
-# 간단한 기호/영문/숫자 제거 정규식 - (영문/숫자는 살리고, 기호만 제거)
+# 간단한 기호/영문/숫자 제거 정규식 - (영문/숫자는 살리고 기호만 제거)
 _PUNCT_KEEP_ALNUM_KO = re.compile(r"[^0-9A-Za-z\uac00-\ud7a3\s]")
 
 def _normalize_text_ko(text: str) -> str:
@@ -107,12 +110,7 @@ def _tokenize_keep_nouns(text: str) -> List[str]:
     rough = [w for w in text.split() if len(w) > 1]
     return [w for w in rough if w not in KOREAN_STOPWORDS]
 
-# preferences/services/keyword_extractor.py (핵심 부분만)
-import json, os, re, math
-from typing import List, Dict, Tuple
-from collections import Counter, defaultdict
 
-# ... (기존: _get_kw, _normalize_text_ko, _tokenize_keep_nv 유지)
 IDF_PATH = os.path.join(os.path.dirname(__file__), "idf.json")
 _IDF: Dict[str, float] | None = None
 
@@ -128,7 +126,7 @@ def _load_idf() -> Dict[str, float]:
     return _IDF
 
 def _keybert_uniwords(text: str, top_k: int = 15) -> List[Tuple[str, float]]:
-    """한 단어만 후보로 뽑되, 전처리된 텍스트를 사용."""
+    """한 단어만 후보로 뽑되, 전처리된 텍스트를 사용"""
     kw = _get_kw()
     pairs = kw.extract_keywords(
         text,
