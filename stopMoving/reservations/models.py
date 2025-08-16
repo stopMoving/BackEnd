@@ -6,7 +6,6 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from celery import shared_task
 from django.db.models import F, Q
 # Create your models here.
 # models.py
