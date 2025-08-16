@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from bookinfo.services import aladin_ingest
+from bookinfo.service import aladin_ingest
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
@@ -18,5 +18,7 @@ class Command(BaseCommand):
         dry_run = options.get("dry_run", False)
         result = aladin_ingest.run(querytypes=querytypes, dry_run=dry_run)
         self.stdout.write(self.style.SUCCESS(
-            f"Processed {result['total']} items, "
-            f"upserted {result['upserted']} items, "))
+            "Done: "
+                f"querytypes={result['querytypes']}, "
+                f"isbn_collected={result['isbn_count']}, "
+        ))
