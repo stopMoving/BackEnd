@@ -76,6 +76,7 @@ PROJECT_APPS = [
     'books', # 책 객체
     'books.management.commands', # 커맨드 추가
     'reservations',
+    'preferences', # 선호도 기반 추천
 ]
 
 THIRD_PARTY_APPS = [ 
