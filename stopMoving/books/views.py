@@ -19,6 +19,8 @@ from django.db import transaction
 from users.models import UserInfo, UserBook, Status
 from notification.service import push
 from notification.models import Notification as N
+from django.conf import settings
+from django.db import transaction
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -87,29 +89,28 @@ class DonationAPIView(APIView):
             except Exception as e:
                 results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
             
-            # 유저 포인트 증가 로직
-            points_earned = success_cnt * POINT_PER_BOOK
-            if request.user.is_authenticated and success_cnt > 0:
-                user_info, _ = UserInfo.objects.get_or_create(user=request.user)
-                user_info.points = (user_info.points or 0) + points_earned
-                user_info.save(update_fields=["points"])
+        # 유저 포인트 증가 로직
+        points_earned = success_cnt * POINT_PER_BOOK
+        if request.user.is_authenticated and success_cnt > 0:
+            user_info, _ = UserInfo.objects.get_or_create(user=request.user)
+            user_info.points = (user_info.points or 0) + points_earned
+            user_info.save(update_fields=["points"])
             
-            if success_books:
-                first = getattr(success_books[0].isbn, "title", "도서")
-                base_msg = message(first, len(success_books),"을 나눔했어요!")
-                msg = f"{base_msg}\n+{points_earned:,} P 적립"
-                push(
-                    user=request.user,
-                    type_="book_donated",
-                    message=msg,
-                )
+        if success_books:
+            first = getattr(success_books[0].isbn, "title", "도서")
+            base_msg = message(first, len(success_books),"을 나눔했어요!")
+            msg = f"{base_msg}\n+{points_earned:,} P 적립"
+            push(user=request.user,
+                 type_="book_donated",
+                 message=msg,
+            )
 
         return Response({
             "message": "일괄 기증 처리 완료",
             "library_id": library.id,
             "count_success": success_cnt,
             "count_total": len(v["isbn"]),
-            "points_earned": success_cnt * POINT_PER_BOOK,
+            "points_earned": points_earned,
             "items": results
         }, status=status.HTTP_201_CREATED)
 
