@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 
-from .serializer import LibraryHoldingItemSerializer, LibraryInfoSerializer
+from .serializer import LibraryHoldingItemSerializer, LibraryInfoSerializer, LibraryNameSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import Library
@@ -61,3 +61,15 @@ class LibraryBooksAPIView(APIView):
         # 4) 직렬화 & 반환 (전체 목록 그대로)
         data = LibraryHoldingItemSerializer(qs, many=True).data
         return Response(data, status=status.HTTP_200_OK)
+
+class LibraryListAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="전체 도서관 목록 조회",
+        responses={200:"성공"}
+    )
+    def get(self, request):
+        qs = Library.objects.all().only("id", "name") # 사이드탭: id랑 이름만 표시
+        serializer = LibraryNameSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

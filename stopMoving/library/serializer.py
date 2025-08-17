@@ -20,3 +20,8 @@ class LibraryHoldingItemSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "cover": {"help_text": "표지 이미지 URL"}
         }
+
+class LibraryNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Library
+        fields = ("id", "name")
