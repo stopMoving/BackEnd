@@ -17,10 +17,16 @@ from math import radians, sin, cos, acos
 from decimal import Decimal
 from django.db import transaction
 from users.models import UserInfo, UserBook, Status
+from notification.service import push
+from notification.models import Notification as N
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
 DISCOUNT_RATE = Decimal("0.15")
+
+def message(first_title: str, count: int, verb: str) -> str:
+    # verb: "기증 접수", "픽업 완료"
+    return f"『{first_title}』 {verb}" if count == 1 else f"『{first_title}』 외 {count-1}권 {verb}"
 
 # 책 나눔하기 마지막에 나눔하기 버튼
 class DonationAPIView(APIView):
@@ -42,6 +48,7 @@ class DonationAPIView(APIView):
 
         results, success_cnt = [], 0
         cache = {}
+        success_books = [] # 기증 성공한 책 목록
 
         for isbn in v["isbn"]:
             try:
@@ -70,6 +77,7 @@ class DonationAPIView(APIView):
                 )
 
                 success_cnt += 1
+                success_books.append(book)
                 results.append({
                     "isbn": info.isbn,
                     "book_id": book.id,
@@ -85,6 +93,16 @@ class DonationAPIView(APIView):
                 user_info, _ = UserInfo.objects.get_or_create(user=request.user)
                 user_info.points = (user_info.points or 0) + points_earned
                 user_info.save(update_fields=["points"])
+            
+            if success_books:
+                first = getattr(success_books[0].isbn, "title", "도서")
+                base_msg = message(first, len(success_books),"을 나눔했어요!")
+                msg = f"{base_msg}\n+{points_earned:,} P 적립"
+                push(
+                    user=request.user,
+                    type_="book_donated",
+                    message=msg,
+                )
 
         return Response({
             "message": "일괄 기증 처리 완료",
@@ -111,6 +129,7 @@ class PickupAPIView(APIView):
 
         results, success_cnt = [], 0
         seen = set()  # 같은 id가 중복으로 올 때 중복 처리 방지
+        success_books = [] # 픽업 성공한 책 목록
 
         for bid in v["book_id"]:
             if bid in seen:
@@ -155,7 +174,14 @@ class PickupAPIView(APIView):
                     # 정가 없으면 PickupDisplaySerializer가 sale_price=2000으로 내려줌
                     "book_info": PickupDisplaySerializer(info).data
                 })
-
+        if success_books:
+            first_title = getattr(success_books[0].isbn, "title", None) or "도서"
+            msg = message(first_title, len(success_books), "을 데려왔어요!\n좋은 시간 보내세요")
+            push(
+                user=request.user,
+                type_="book_pickup",      # ← 너의 choices 그대로
+                message=msg,
+            )
         # 실제 시도한(중복 제거된) 건수로 계산
         attempted_cnt = len(seen)
 

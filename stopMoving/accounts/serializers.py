@@ -78,7 +78,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("닉네임은 한글과 영문 대소문자만 사용할 수 있습니다.")
         # 닉네임 중복 검사
         if User.objects.filter(nickname=value).exists():
-            raise serializers.ValidationError("이미 사용 중인 아이디입니다.")
+            raise serializers.ValidationError("이미 사용 중인 닉네임입니다.")
         
         return value
 
