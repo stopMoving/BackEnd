@@ -210,6 +210,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'EXCEPTION_HANDLER': 'config.exceptions.custom_exception_handler',
 }
 
 REST_USE_JWT = True
