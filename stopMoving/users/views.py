@@ -6,6 +6,8 @@ from rest_framework import status
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+
+from config.responses import empty_list
 from .serializers import UserProfileSerializer, UserBookSerializer
 from typing import List
 
@@ -14,6 +16,7 @@ from library.models import Library
 from books.models import Book
 from accounts.models import User
 from bookinfo.models import BookInfo
+from .exceptions import UserInfoNotFound, UserProfileSerializerError, NoDonatedBooks, NoPurchasedBooks
 
 # Create your views here.
 class UserProfileView(APIView):
@@ -24,7 +27,10 @@ class UserProfileView(APIView):
     )
     def get(self, request):
         user = request.user
-        user_info = UserInfo.objects.get(user=user)
+        try:
+            user_info = UserInfo.objects.get(user=user)
+        except UserInfo.DoesNotExist:
+            raise UserInfoNotFound()
         
         # 사용자 프로필 정보 직렬화
         profile_data = {
@@ -33,7 +39,11 @@ class UserProfileView(APIView):
             "keywords": user_info.preference_keyword or []
         }
 
-        serializer = UserProfileSerializer(instance=profile_data)
+        try:
+            serializer = UserProfileSerializer(instance=profile_data)
+        except Exception:
+            raise UserProfileSerializerError()
+        
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class MyDonatedBooksView(APIView):
@@ -49,6 +59,13 @@ class MyDonatedBooksView(APIView):
             .select_related('book', 'book__library')
             .order_by('-created_at')
         )
+        # 빈 결과 처리
+        strict = request.query_params.get('strict', 'false').lower() == 'true'
+        if not qs.exists():
+            if strict:
+                raise NoDonatedBooks()
+            return empty_list("기증한 책이 없습니다.")
+        
         return Response(UserBookSerializer(qs, many=True).data, status=status.HTTP_200_OK)
     
 class MyPurchasedBooksView(APIView):
@@ -64,4 +81,11 @@ class MyPurchasedBooksView(APIView):
             .select_related('book', 'book__library')
             .order_by('-created_at')
         )
+        # 빈 결과 처리
+        strict = request.query_params.get('strict', 'false').lower() == 'true'
+        if not qs.exists():
+            if strict:
+                raise NoPurchasedBooks()
+            return empty_list("구매한 책이 없습니다.")
+        
         return Response(UserBookSerializer(qs, many=True).data, status=status.HTTP_200_OK)

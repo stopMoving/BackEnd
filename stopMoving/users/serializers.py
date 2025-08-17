@@ -4,7 +4,7 @@ from library.models import Library
 from books.models import Book
 
 # 마이페이지에 표시할 사용자 정보
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserProfileSerializer(serializers.Serializer):
     nickname = serializers.CharField()
     points = serializers.IntegerField()
     keywords = serializers.ListField(
