@@ -1,24 +1,9 @@
-[project]
+[tool.poetry]
 name = "stopmoving"
 version = "0.1.0"
-description = ""
-authors = [
-    {name = "jjjaehong",email = "woghd3014@gmail.com"}
-]
+description = "Backend for stopMoving project"
+authors = ["jjjaehong <woghd3014@gmail.com>"]
 readme = "README.md"
-requires-python = ">=3.12"
-
-[tool.poetry]
-packages = [{include = "stopmoving", from = "src"}]
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-[[tool.poetry.source]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-priority = "supplemental"
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
@@ -34,3 +19,13 @@ sentence-transformers = ">=5.1.0,<6.0.0"
 scikit-learn = ">=1.7.1,<2.0.0"
 numpy = ">=2.3.2,<3.0.0"
 torch = { version = "==2.4.0", source = "pytorch-cpu" }
+
+# torch 전용 추가 인덱스
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+# priority = "supplemental"  # ← 구버전 Poetry에서 에러 나니 제거
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
