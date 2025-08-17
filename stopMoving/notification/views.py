@@ -28,9 +28,11 @@ class NotificationListView(APIView):
         total = qs.count()
         items = qs[(page - 1) * size : page * size]
 
+        data = NotificationSerializer(items, many=True).data
+
         return Response({
             "total": total,
             "page": page,
             "size": size,
-            "results": NotificationSerializer(items, many=True).data
+            "results": data
         }, status=status.HTTP_200_OK)
