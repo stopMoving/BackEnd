@@ -9,6 +9,7 @@ class LibraryInfoSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'address', 'contact', 'closed_days', 'hours_of_use', 'sns', 'lat', 'long']
 
 class LibraryHoldingItemSerializer(serializers.ModelSerializer):
+    isbn = serializers.CharField(source="isbn.isbn")
     title = serializers.CharField(source="isbn.title")
     author = serializers.CharField(source="isbn.author")
     publisher = serializers.CharField(source="isbn.publisher")
@@ -16,7 +17,7 @@ class LibraryHoldingItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ["title", "author", "publisher", "cover"]
+        fields = ["isbn", "title", "author", "publisher", "cover"]
         extra_kwargs = {
             "cover": {"help_text": "표지 이미지 URL"}
         }
