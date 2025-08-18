@@ -32,3 +32,6 @@ class UserBookSerializer(serializers.ModelSerializer):
             'userbook_id', 'book_title', 'cover',
             'status', 'created_at', 'library_id', 'library_name'
         )
+
+class MyLibraryModifySerializer(serializers.Serializer):
+    library_id = serializers.IntegerField()

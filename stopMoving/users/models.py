@@ -11,7 +11,7 @@ class UserInfo(models.Model):
     survey_done = models.BooleanField(default=False)
     last_survey_at = models.DateTimeField(blank=True, null=True)
     points = models.BigIntegerField(default=0)
-    my_lib = models.BigIntegerField(default=0)  # 내 도서관 id
+    my_lib_ids = models.JSONField(default=list, blank=True)  # 내 도서관 id들을 리스트로 저장
 
 class Status(models.TextChoices):
     DONATED = 'DONATED', '기증'
