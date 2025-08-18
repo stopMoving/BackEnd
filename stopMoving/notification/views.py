@@ -24,8 +24,15 @@ class NotificationListView(APIView):
         qs = (Notification.objects
               .filter(user=request.user, created_at__gte=since)
               .order_by("-created_at"))
-
+        
         total = qs.count()
+        if total==0:
+            return Response({
+                "total": 0,
+                "page": page,
+                "size": size,
+                "results": "받은 알림이 없습니다."
+            }, status=status.HTTP_200_OK)
         items = qs[(page - 1) * size : page * size]
 
         data = NotificationSerializer(items, many=True).data

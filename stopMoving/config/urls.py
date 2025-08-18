@@ -19,6 +19,7 @@ from django.urls import path, include
 from rest_framework import permissions 
 from drf_yasg.views import get_schema_view 
 from drf_yasg import openapi
+from django.http import JsonResponse
 
 # Swagger 설정
 schema_view = get_schema_view(
@@ -43,4 +44,5 @@ urlpatterns = [
     path('notification/', include('notification.urls')), # notification 앱의 URL 포함 
     path('users/', include('users.urls')),  # users 앱의 URL 포함
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path("", lambda r: JsonResponse({"status": "ok"})),  # 루트 응답
 ]

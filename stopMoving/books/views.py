@@ -180,7 +180,7 @@ class PickupAPIView(APIView):
             msg = message(first_title, len(success_books), "을 데려왔어요!\n좋은 시간 보내세요")
             push(
                 user=request.user,
-                type_="book_pickup",      # ← 너의 choices 그대로
+                type_="book_pickup",     
                 message=msg,
             )
         # 실제 시도한(중복 제거된) 건수로 계산
