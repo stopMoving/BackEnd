@@ -18,9 +18,9 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         N = 0
         df = Counter()
-        qs = BookInfo.objects.values_list("title", "description")
-        for title, desc in qs.iterator(chunk_size=1000):
-            text = " ".join(filter(None, [title or "", desc or ""]))
+        qs = BookInfo.objects.values_list("category", "description")
+        for category, desc in qs.iterator(chunk_size=1000):
+            text = " ".join(filter(None, [category or "", desc or ""]))
             text = _normalize_text_ko(text)
             toks = set(_tokenize_keep_nouns(text))  # 문서 내 중복 제거
             if not toks:

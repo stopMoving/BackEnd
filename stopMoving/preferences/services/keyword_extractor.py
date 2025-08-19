@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 # ====== 모델 로딩 (한 번만) ======
 from sentence_transformers import SentenceTransformer
 from keybert import KeyBERT
+import numpy as np
 
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" # 경량, 속도 빠름, 다국어/한국어 친화 모델
 # MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2" # 더 정확, 속도는 약간 느림, 영어 중심
@@ -38,8 +39,11 @@ KOREAN_STOPWORDS = {
     "와", "과", "으로", "으로서", "으로써", "에게", "께", "한테",
     "보다", "처럼", "부터", "까지", "도", "만", "조차", "마저",
     "의", "및", "또는", "그리고", "하지만", "그러나", "또", "혹은",
-    "등", "등등", "요", "게", "데", "고", "라", "다", "것", "수", "들",
+    "등", "등등", "요", "게", "데", "고", "라", "다", "것", "수", "들", "하다", "되다"
 }
+# 지명/기관/주소 흔한 접미(휴리스틱)
+_PLACE_SUFFIXES = ("시","군","구","동","읍","면","리","로","길","대로","번길","국","청","원","대")
+
 
 # 간단한 기호/영문/숫자 제거 정규식 - (영문/숫자는 살리고 기호만 제거)
 _PUNCT_KEEP_ALNUM_KO = re.compile(r"[^0-9A-Za-z\uac00-\ud7a3\s]")
@@ -88,21 +92,22 @@ def _tokenize_keep_nouns(text: str) -> List[str]:
     text = _normalize_text_ko(text)
 
     # 1) Kiwi: 품사 태그가 'N', 'V'로 시작하는 것만 채택
+    # 수정 - 명사(NNG) + 형용사(VA)만 유지, 고유명사/동사 제외
     if _use_kiwi:
-        tokens = []
-        for token in _kiwi.tokenize(text, normalize_coda=True):
+        toks = []
+        for tk in _kiwi.tokenize(text, normalize_coda=True):
             # NNG(일반명사)만 추출, NNP(고유명사) 제외
-            if token.tag == "NNG":
-                lemma = token.form  # 원형
-                if lemma and lemma not in KOREAN_STOPWORDS and len(lemma) > 1:
-                    tokens.append(lemma)
-        return tokens
+            if tk.tag in ("NNG", "VA"):
+                form = tk.form
+                if form and len(form) > 1 and form not in KOREAN_STOPWORDS:
+                    toks.append(form)
+        return toks
 
     # 2) Okt: Noun/Verb만, 동사는 어간 추출(stem=True)
     if _use_okt:
         tokens = []
         for word, pos in _okt.pos(text, norm=True, stem=True):
-            if pos == "Noun" and word and word not in KOREAN_STOPWORDS and len(word) > 1:
+            if pos in ("Noun", "Adjective") and word and word not in KOREAN_STOPWORDS and len(word) > 1:
                 tokens.append(word)
         return tokens
 
@@ -125,7 +130,7 @@ def _load_idf() -> Dict[str, float]:
             _IDF = {}
     return _IDF
 
-def _keybert_uniwords(text: str, top_k: int = 15) -> List[Tuple[str, float]]:
+def _keybert_uniwords(text: str, top_k: int = 20) -> List[Tuple[str, float]]:
     """한 단어만 후보로 뽑되, 전처리된 텍스트를 사용"""
     kw = _get_kw()
     pairs = kw.extract_keywords(
@@ -139,6 +144,45 @@ def _keybert_uniwords(text: str, top_k: int = 15) -> List[Tuple[str, float]]:
     )
     # [(word, score)] 그대로 반환
     return pairs
+
+# -------------------- 필터 & 중복 제거 --------------------
+_ASCII_PROPER = re.compile(r"^[A-Z][A-Za-z]+$")    # 영문 고유명사처럼 보이는 것
+_NUMERICISH   = re.compile(r"^\d{2,4}$")           # 2~4자리 숫자(연도 등)
+_VALID_TOKEN  = re.compile(r"^[0-9A-Za-z\uac00-\ud7a3]{2,}$")
+
+def _looks_place_like(w: str) -> bool:
+    return w.endswith(_PLACE_SUFFIXES)
+
+def _filter_token(w: str, author_tokens: set[str]) -> bool:
+    """True면 유지, False면 버림"""
+    if not _VALID_TOKEN.fullmatch(w):
+        return False
+    lw = w.lower()
+    if lw in author_tokens:           # 저자명/성씨 제거
+        return False
+    if _NUMERICISH.fullmatch(w):
+        return False
+    if _ASCII_PROPER.fullmatch(w):    # 영어 고유명사처럼 보이는 형태
+        return False
+    if _looks_place_like(w):
+        return False
+    return True
+
+def _semantic_dedupe(words: List[str], sim_threshold: float = 0.80) -> List[str]:
+    """SBERT 임베딩으로 유사 후보 제거(그리디)."""
+    if len(words) <= 1:
+        return words
+    model = MODEL_NAME
+    vecs = model.encode(words, normalize_embeddings=True)
+    keep: List[int] = []
+    for i, v in enumerate(vecs):
+        if not keep:
+            keep.append(i); continue
+        # 기존 채택과의 최대 유사도
+        max_sim = max(float(np.dot(v, vecs[j])) for j in keep)
+        if max_sim < sim_threshold:
+            keep.append(i)
+    return [words[i] for i in keep]
 
 def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str]:
     """
@@ -162,7 +206,7 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
 
         title_toks = _tokenize_keep_nouns(title)
         cate_toks  = _tokenize_keep_nouns(category)
-        text = " \n".join([title, category, desc])
+        text = " \n".join([title, category, category, desc])
      
         toks = _tokenize_keep_nouns(text)
         book_tokens.append(toks)
@@ -192,7 +236,7 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
     # 5) 최종 점수 = 평균 KeyBERT 점수 × (1 + α·IDF) × (1 + β·DocFreqBoost)
     #    - α: IDF 중요도 (0.5~1.0), β: 교집합 보너스 (예: 0.3)
     α, β = 0.7, 0.3
-    IDF_MIN, IDF_MAX = (0.0, float("inf")) if idf_empty else (1.2, 8.0)  # 너무 흔한/너무 희귀 컷
+    IDF_MIN, IDF_MAX = (0.0, float("inf")) if idf_empty else (1.8, 6.0)  # 너무 흔한/너무 희귀 컷
 
     # 책 내부 빈도(tf) 계산
     tf_all = Counter()
