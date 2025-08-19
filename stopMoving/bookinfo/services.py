@@ -7,6 +7,9 @@ from .serializers import BookInfoUpsertSerializer
 ALADIN_URL = "http://www.aladin.co.kr/ttb/api/ItemLookUp.aspx"
 ALADIN_TIMEOUT = 5
 
+from decimal import Decimal, ROUND_FLOOR
+DISCOUNT_RATE = Decimal("0.15")
+
 def ensure_bookinfo(isbn: str):
     """
     DB에 BookInfo가 있으면 반환.
@@ -63,3 +66,10 @@ def ensure_bookinfo(isbn: str):
         return ser.save()
     except Exception:
         return None
+
+def get_sale_price(obj):
+        # 정가 없으면 판매가는 고정 2000원
+        if obj.regular_price is None:
+            return 2000
+        # 정가 있으면 85% 내림
+        return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))

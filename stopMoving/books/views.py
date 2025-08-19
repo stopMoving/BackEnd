@@ -69,6 +69,7 @@ class DonationAPIView(APIView):
                     library=library,
                     isbn=info,
                     regular_price=info.regular_price,  # 정가 정보 없으면 None 저장
+                    sale_price=info.sale_price,
                     donor_user=request.user if request.user.is_authenticated else None,
                 )
 

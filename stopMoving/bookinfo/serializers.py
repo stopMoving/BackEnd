@@ -4,6 +4,8 @@ from rest_framework import serializers
 from .models import BookInfo
 from books.serializers import IsbnListField
 
+from decimal import Decimal, ROUND_FLOOR
+DISCOUNT_RATE = Decimal("0.15")
 # (공통 베이스) 응답 기본 스키마
 class BookInfoPublicBaseSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,6 +22,7 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
         required=False, allow_null=True,
         input_formats=["%Y-%m-%d", "%Y%m%d", "%Y.%m.%d"],
     )
+    sale_price = serializers.SerializerMethodField()
 
     class Meta:
         model = BookInfo
@@ -27,7 +30,7 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
         fields = (
             "isbn", "title", "author", "publisher",
             "published_date", "cover_url", "category",
-            "regular_price", "description",
+            "regular_price", "sale_price", "description",
         )
         extra_kwargs = {
             "title": {"allow_blank": True},
@@ -42,15 +45,18 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
         if not re.fullmatch(r"\d{10}|\d{13}", v):
             raise serializers.ValidationError("ISBN은 10자리 또는 13자리여야 합니다.")
         return v
+    
+    def get_sale_price(self, obj):
+        # 정가 없으면 판매가는 고정 2000원
+        if obj.regular_price is None:
+            return 2000
+        # 정가 있으면 85% 내림
+        return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
 
 # (나눔 화면 전용) 필요한 필드만
 class DonationDisplaySerializer(BookInfoPublicBaseSerializer):
     class Meta(BookInfoPublicBaseSerializer.Meta):
-        fields = ("isbn", "title", "author", "publisher", "cover_url","published_date")
-
-# (픽업 화면 전용) 정가 + 85% 할인 판매가 포함
-from decimal import Decimal, ROUND_FLOOR
-DISCOUNT_RATE = Decimal("0.15")
+        fields = ("isbn", "title", "author", "publisher", "cover_url", "published_date")
 
 class PickupDisplaySerializer(BookInfoPublicBaseSerializer):
     sale_price = serializers.SerializerMethodField()
@@ -78,7 +84,7 @@ class BookDetailDisplaySerializer(BookInfoPublicBaseSerializer):
 
     class Meta(BookInfoPublicBaseSerializer.Meta):
         # 요구사항: 제목, 저자, 출판사, 정가, 판매가, isbn
-        fields = ("isbn", "title", "author", "publisher", "regular_price", "sale_price", "cover_url","description")
+        fields = ("isbn", "title", "author", "publisher", "published_date", "regular_price", "sale_price", "cover_url","description")
 
     def get_sale_price(self, obj):
         # 정가 없으면 판매가는 고정 2000원
