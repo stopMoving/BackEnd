@@ -93,7 +93,7 @@ class DonateBookLookUpAPIView(APIView):
         return Response(data, status=201)
 
     
-
+# 책 검색
 class BookSearchAPIView(APIView):
     
     @swagger_auto_schema(manual_parameters=[
@@ -106,7 +106,7 @@ class BookSearchAPIView(APIView):
         if not q:
             return Response({"detail": "q는 필수입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
-        district = request.GET.get('district')  # 예: "동작구"
+        
         keywords = q.split()
 
         # 공백 무시용 임시필드
@@ -131,6 +131,12 @@ class BookSearchAPIView(APIView):
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 20))
         start, end = (page - 1) * page_size, page * page_size
+        
+        # 검색어에 맞는 책이 없을 경우
+        if len(qs) == 0:
+            search_q = request.GET.get('q', '')
+            msg = f'"{search_q}" 은\n북작북작에 나눔되지 않았습니다.'
+            return Response({"msg":msg})
 
         # 프론트에 필요한 필드만 반환 (제목/저자/출판사/출간일/표지)
         results = [{
