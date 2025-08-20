@@ -95,7 +95,8 @@ class DonationAPIView(APIView):
             user_info, _ = UserInfo.objects.get_or_create(user=request.user)
             user_info.points = (user_info.points or 0) + points_earned
             user_info.save(update_fields=["points"])
-            
+        
+        # 알림 보내기
         if success_books:
             first = getattr(success_books[0].isbn, "title", "도서")
             base_msg = message(first, len(success_books),"을 나눔했어요!")
@@ -168,6 +169,7 @@ class PickupAPIView(APIView):
                 )
                 info = book.isbn  # BookInfo
                 success_cnt += 1
+                success_books.append(book)
                 results.append({
                     "book_id": book.id,
                     "library_id": book.library_id,
@@ -175,6 +177,8 @@ class PickupAPIView(APIView):
                     # 정가 없으면 PickupDisplaySerializer가 sale_price=2000으로 내려줌
                     "book_info": PickupDisplaySerializer(info).data
                 })
+        
+        # 알림 보내기
         if success_books:
             first_title = getattr(success_books[0].isbn, "title", None) or "도서"
             msg = message(first_title, len(success_books), "을 데려왔어요!\n좋은 시간 보내세요")
