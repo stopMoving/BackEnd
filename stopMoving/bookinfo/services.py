@@ -13,6 +13,9 @@ from django.db import IntegrityError, transaction
 ALADIN_URL = "http://www.aladin.co.kr/ttb/api/ItemLookUp.aspx"
 ALADIN_TIMEOUT = 5
 
+from decimal import Decimal, ROUND_FLOOR
+DISCOUNT_RATE = Decimal("0.15")
+
 def ensure_bookinfo(isbn: str):
     """
     DB에 BookInfo가 있으면 반환(벡터 없으면 계산 -> 벡터만 저장).
@@ -93,6 +96,7 @@ def ensure_bookinfo(isbn: str):
         return None
 
 
+
 # bookinfo 조회했는데 vector 칸만 비어있을 때 사용
 def _attach_vector_if_missing(info: BookInfo) -> None:
     if info.vector:
@@ -111,3 +115,11 @@ def _attach_vector_if_missing(info: BookInfo) -> None:
         info.save(update_fields=["vector"])
     except Exception:
         pass
+      
+def get_sale_price(obj):
+        # 정가 없으면 판매가는 고정 2000원
+        if obj.regular_price is None:
+            return 2000
+        # 정가 있으면 85% 내림
+        return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
+

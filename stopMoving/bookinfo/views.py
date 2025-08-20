@@ -9,7 +9,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q, Func, F, Value
-from .services import ensure_bookinfo
+from .services import ensure_bookinfo, get_sale_price
 
 from .models import BookInfo
 from bookinfo.serializers import (
@@ -137,7 +137,7 @@ class BookSearchAPIView(APIView):
             "title": b.title,
             "author": b.author,
             "publisher": getattr(b, "publisher", None),
-            "pub_date": getattr(b, "pub_date", None),
+            "published_date": getattr(b, "published_date", None),
             "cover_url": getattr(b, "cover_url", None)
         } for b in qs[start:end]]
 

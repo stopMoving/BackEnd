@@ -28,6 +28,7 @@ class Book(models.Model):
 
     expire_date = models.DateTimeField(null=True, blank=True) # 기증일로부터 30일 후
     regular_price = models.IntegerField(null=True, blank=True) # 정가
+    sale_price = models.IntegerField(null=True, blank=True) # 판매가
     donation_date = models.DateTimeField(auto_now_add=True) # 기증일
     status = models.CharField(max_length=20, choices=STATUS, default="AVAILABLE") # 상태
 
