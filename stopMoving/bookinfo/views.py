@@ -10,8 +10,9 @@ from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q, Func, F, Value
 from .services import ensure_bookinfo, get_sale_price
-
+from users.models import UserInfo
 from .models import BookInfo
+import random
 from bookinfo.serializers import (
     DonationDisplaySerializer,
     PickupDisplaySerializer,
@@ -136,9 +137,17 @@ class BookSearchAPIView(APIView):
             search_q = request.GET.get('q', '')
             msg = f'"{search_q}" 은\n북작북작에 나눔되지 않았습니다.'
 
+            isbn_list = []
+            ui = UserInfo.objects.filter(user=request.user).only('preference_book').first()
+            isbn_list = ui.preference_book
+            rand_index = random.randint(0,4)
+            recommend_isbn = isbn_list[rand_index]
 
-            
-            return Response({"msg":msg})
+            obj = BookInfo.objects.get(isbn=recommend_isbn)
+
+            data = BookSummarySerializer(obj).data
+
+            return Response({"msg":msg, "data": data})
         
 
 
