@@ -301,30 +301,76 @@ class BookDetailAPIView(APIView):
 
 class PickUpBookDetailAPIView(APIView):
     """
-    스캔으로 받은 book_id(개별 권)로 상세 조회 (DB only)
-    GET /api/books/{book_id}/
+    스캔한 ISBN과 도서관 id로 픽업 상세 조회
     """
     permission_classes = [IsAuthenticated]
+
     @swagger_auto_schema(
-        operation_description="스캔한 book_id로 픽업용 상세 조회",
+        operation_description="스캔한 ISBN으로 책 정보와 해당 도서관의 AVAILABLE 책 id 목록 반환",
         manual_parameters=[
-            openapi.Parameter('book_id', openapi.IN_PATH, type=openapi.TYPE_INTEGER, required=True),
+            openapi.Parameter(
+                name="isbn",
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                required=True,
+                description="스캔한 ISBN(문자열)"
+            ),
+            openapi.Parameter(
+                name="library_id",
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                required=True,
+                description="도서관 ID"
+            ),
         ],
-        responses={200: 'OK', 404: '없음', 400: '요청 오류'}
+        responses={200: 'OK', 404: '책/도서관 없음', 400: '요청 오류'}
     )
 
-    def get(self, request, book_id: int):
-        try:
-            b = Book.objects.select_related('isbn').get(id=book_id)
-        except Book.DoesNotExist:
-            return Response({"error": "해당 book_id가 없습니다."}, status=404)
-        
-        info_data = PickupDisplaySerializer(b.isbn).data
+    def get(self, request):
+        isbn = request.GET.get("isbn")
+        library_id = request.GET.get("library_id")
 
+        # 파라미터 검증
+        if not isbn or not library_id:
+            return Response({"error": "isbn과 library_id 모두 필요합니다."})
+        try:
+            library_id = int(library_id)
+        except ValueError:
+            return Response({"error": "library_id는 정수입니다."})
+        
+        # 도서관 및 책 존재 확인
+        library = Library.objects.filter(id=library_id).first()
+        if not library:
+            return Response({"error":"해당 도서관이 존재하지 않습니다."})
+        
+        info = BookInfo.objects.filter(isbn=isbn).first()
+        if not info:
+            return Response({"error":"해당 isbn의 책 정보가 없습니다."})
+        
+        # 해당 도서관에 AVAILABLE인 책 id
+        qs_ids = (
+            Book.objects
+            .filter(library_id=library_id, isbn_id=isbn, status="AVAILABLE")
+            .order_by("id")
+            .values_list("id", flat=True)
+        )
+        book_ids = list(qs_ids)
+        available_cnt = len(book_ids)
+
+        # 도서관에 존재하는 책의 상태가 AVAILABLE가 아닐 때
+        if available_cnt == 0:
+            return Response({"error" : "구매 불가 상품입니다."})
+
+        info_data = PickupDisplaySerializer(info).data
         data = {
             **info_data,
-            "status": b.status,
-            "is_pickable": (b.status == "AVAILABLE")
+            "library_id": library_id,
+            "status": "AVAILABLE" if available_cnt > 0 else "N/A",
+            "is_pickable": available_cnt > 0,
+            "available_count": available_cnt,
         }
-        return Response(data, status=200)
+
+        return Response({"data": data, "book_ids": book_ids}, status=status.HTTP_200_OK)
+
+
         

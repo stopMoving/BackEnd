@@ -62,5 +62,5 @@ class DonationSerializer(serializers.Serializer):
     isbn = IsbnListField()  # 단/복수 모두 여기로
 
 class PickupSerializer(serializers.Serializer):
-    book_id = BookIdListField()
+    isbn = IsbnListField()  # 단/복수 모두 여기로
 
