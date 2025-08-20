@@ -31,7 +31,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 VECTOR_DATA_DIR = os.path.join(BASE_DIR, "vector_data")
 VECTOR_PICKLE_PATH = os.path.join(VECTOR_DATA_DIR, "vectorizer.pkl")
 
-RECOMMEND_ALPHA = 0.7 # 통합 = a*설문 + (1-a)+활동
+# 수정: 0.7 -> 0.85
+RECOMMEND_ALPHA = 0.85 # 통합 = a*설문 + (1-a)+활동
 ACTIVITY_EMA_BETA = 0.8 # 활동벡터 EMA: new = b*old + (1-b)*new_book
 
 secret_file = os.path.join(BASE_DIR, 'secrets.json') 
