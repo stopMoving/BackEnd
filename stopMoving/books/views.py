@@ -299,6 +299,8 @@ class BookDetailAPIView(APIView):
         info_data = BookDetailDisplaySerializer(info).data
         return Response({**info_data, "libraries": libraries}, status=200)
 
+
+
 class PickUpBookDetailAPIView(APIView):
     """
     스캔으로 받은 book_id(개별 권)로 상세 조회 (DB only)
