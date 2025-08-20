@@ -11,7 +11,6 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q, Func, F, Value
 from .services import ensure_bookinfo, get_sale_price
 
-
 from .models import BookInfo
 from bookinfo.serializers import (
     DonationDisplaySerializer,
