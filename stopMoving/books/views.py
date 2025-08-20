@@ -101,7 +101,7 @@ class DonationAPIView(APIView):
         if success_books:
             first = getattr(success_books[0].isbn, "title", "도서")
             base_msg = message(first, len(success_books),"을 나눔했어요!")
-            msg = f"{base_msg}\n+{points_earned:,} P 적립"
+            msg = f"{base_msg}\n+{points_earned:,}P 적립"
             push(user=request.user,
                  type_="book_donated",
                  message=msg,
