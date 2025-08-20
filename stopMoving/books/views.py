@@ -21,6 +21,7 @@ from notification.service import push
 from notification.models import Notification as N
 from django.conf import settings
 from django.db import transaction
+from preferences.services.embeddings import deserialize_sparse, serialize_sparse, weighted_sum
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -167,6 +168,25 @@ class PickupAPIView(APIView):
                     defaults={"status": Status.PURCHASED},
                 )
                 info = book.isbn  # BookInfo
+                # 취향 벡터 계산 위해 추가---------------------
+                ui, _ = UserInfo.objects.get_or_create(user = request.user)
+
+                book_v = deserialize_sparse(info.vector)
+                if book_v is not None:
+                    # 활동 벡터 EMA 업데이트
+                    beta = settings.ACTIVITY_EMA_BETA
+                    old_act = deserialize_sparse(ui.preference_vector_activity)
+                    new_act = book_v if old_act is None else (beta * old_act + (1 - beta) * book_v)
+                    ui.preference_vector_activity = serialize_sparse(new_act)
+
+                    # 통합 벡터 갱신: α*survey + (1-α)*activity
+                    survey = deserialize_sparse(ui.preference_vector_survey)
+                    combined = weighted_sum(survey, new_act, alpha = settings.RECOMMEND_ALPHA)
+                    ui.preference_vector = serialize_sparse(combined if combined is not None else new_act)
+
+                    ui.save(update_fields=["preference_vector_activity", "preference_vector"])
+
+                # 기존 코드-------------------------
                 success_cnt += 1
                 results.append({
                     "book_id": book.id,
