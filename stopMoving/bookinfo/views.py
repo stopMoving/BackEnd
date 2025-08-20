@@ -138,7 +138,7 @@ class BookSearchAPIView(APIView):
             "title": b.title,
             "author": b.author,
             "publisher": getattr(b, "publisher", None),
-            "pub_date": getattr(b, "pub_date", None),
+            "published_date": getattr(b, "published_date", None),
             "cover_url": getattr(b, "cover_url", None)
         } for b in qs[start:end]]
 
