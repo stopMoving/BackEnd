@@ -77,3 +77,12 @@ def weighted_sum(v1: Optional[sparse.csr_matrix], v2: Optional[sparse.csr_matrix
     if v1 is None: return v2
     if v2 is None: return v1
     return alpha * v1 + (1.0 - alpha) * v2
+
+def l2_normalize(csr: sparse.csr_matrix | None):
+    if csr is None or csr.nnz == 0:
+        return csr
+    csr = csr.tocsr(copy=True)
+    n = float(np.sqrt((csr.data ** 2).sum()))
+    if n > 0:
+        csr.data /= n
+    return csr

@@ -21,7 +21,7 @@ from notification.service import push
 from notification.models import Notification as N
 from django.conf import settings
 from django.db import transaction
-from preferences.services.embeddings import deserialize_sparse, serialize_sparse, weighted_sum
+from preferences.services.embeddings import deserialize_sparse, serialize_sparse, weighted_sum, l2_normalize
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -184,6 +184,8 @@ class PickupAPIView(APIView):
                     # 통합 벡터 갱신: α*survey + (1-α)*activity
                     survey = deserialize_sparse(ui.preference_vector_survey)
                     combined = weighted_sum(survey, new_act, alpha = settings.RECOMMEND_ALPHA)
+                    # l2 정규화 추가
+                    combined = l2_normalize(combined)
                     ui.preference_vector = serialize_sparse(combined if combined is not None else new_act)
 
                     ui.save(update_fields=["preference_vector_activity", "preference_vector"])

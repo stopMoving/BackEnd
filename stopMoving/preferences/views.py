@@ -13,7 +13,7 @@ from users.models import UserInfo, UserBook, Status
 from .services.keyword_extractor import extract_keywords_from_books
 # 벡터
 from preferences.services.embeddings import(
-    load_vectorizer, serialize_sparse, deserialize_sparse, weighted_sum
+    load_vectorizer, serialize_sparse, deserialize_sparse, weighted_sum, l2_normalize
 )
 from preferences.services.recommend import cosine_topk
 from django.conf import settings
@@ -78,6 +78,8 @@ class ExtractKeywordsView(APIView):
         # 통합 =  α*survey + (1-α)*activity (활동 벡터는 아직 없는 상황)
         act = deserialize_sparse(ui.preference_vector_activity) if ui.preference_vector_activity else None
         combined = weighted_sum(sv, act, alpha = settings.RECOMMEND_ALPHA)
+        # l2 정규화 추가
+        combined = l2_normalize(combined)
         ui.preference_vector = serialize_sparse(combined if combined is not None else sv)
 
         ui.save(update_fields=[
