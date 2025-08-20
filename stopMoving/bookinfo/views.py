@@ -136,7 +136,12 @@ class BookSearchAPIView(APIView):
         if len(qs) == 0:
             search_q = request.GET.get('q', '')
             msg = f'"{search_q}" 은\n북작북작에 나눔되지 않았습니다.'
+
+
+            
             return Response({"msg":msg})
+        
+
 
         # 프론트에 필요한 필드만 반환 (제목/저자/출판사/출간일/표지)
         results = [{
