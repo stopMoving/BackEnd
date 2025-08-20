@@ -106,7 +106,7 @@ class DonationAPIView(APIView):
                  type_="book_donated",
                  message=msg,
             )
-
+        
         return Response({
             "message": "일괄 기증 처리 완료",
             "library_id": library.id,
