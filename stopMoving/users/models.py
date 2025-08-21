@@ -41,7 +41,9 @@ class UserBook(models.Model):
         max_length=20,
         choices=Status.choices,   # Enum 연결
     )
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True) # 사실상 bookinfo-library의 updated_at
+
+    quantity = models.IntegerField(default=0)
 
     class Meta:
         unique_together = (('user', 'book'),) # 기증한 책을 기증자가 못가져감 -> 삭제 시 기증자가 기증한 책 가져갈 수 있음
