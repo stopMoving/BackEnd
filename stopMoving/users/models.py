@@ -48,11 +48,11 @@ class UserBook(models.Model):
     quantity = models.IntegerField(default=0)
 
     class Meta:
-        unique_together = (('user', 'bookinfo'),) # 기증한 책을 기증자가 못가져감 -> 삭제 시 기증자가 기증한 책 가져갈 수 있음
+        unique_together = (('user', 'bookinfo', 'status'),) # 기증한 책을 기증자가 못가져감 -> 삭제 시 기증자가 기증한 책 가져갈 수 있음
         
         indexes = [
             models.Index(fields=["user", "status", "created_at"]),
-            models.Index(fields=["bookinfo", "created_at"]),
+            models.Index(fields=["bookinfo", "status", "created_at"]),
         ]
       
 
