@@ -6,17 +6,17 @@ from rest_framework import status
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
-from .serializers import DonationSerializer, PickupSerializer
+from .serializers import StockBatchRequestSerializer
 from .models import Book
 from library.models import Library
-from bookinfo.models import BookInfo
+from bookinfo.models import BookInfo, BookInfoLibrary
 from bookinfo.serializers import DonationDisplaySerializer, PickupDisplaySerializer, BookDetailDisplaySerializer
 from bookinfo.services import ensure_bookinfo
-from django.db.models import Q, Count, F, Value
+from django.db.models import Q, Count, F, Value, Sum
 from math import radians, sin, cos, acos
 from decimal import Decimal
 from django.db import transaction
-from users.models import UserInfo, UserBook, Status
+from users.models import UserInfo, Status
 from notification.service import push
 from notification.models import Notification as N
 from django.conf import settings
@@ -31,17 +31,90 @@ def message(first_title: str, count: int, verb: str) -> str:
     # verb: "기증 접수", "픽업 완료"
     return f"《{first_title}》 {verb}" if count == 1 else f"《{first_title}》 외 {count-1}권 {verb}"
 
+def _increase_stock_one(library_id, isbn: str, qty: int):
+    """
+    해당 도서관 책 권 수 증가
+    """
+    isbn = BookInfo.objects.filter(isbn=isbn).first()
+    if not isbn:
+        return False, {"error": "책 정보가 없습니다. 먼저 BookInfo를 생성하세요.", "isbn": isbn}
+
+    with transaction.atomic():
+        bil, _created = (
+            BookInfoLibrary.objects
+            .select_for_update()
+            .get_or_create(library_id=library_id, isbn=isbn, defaults={"quantity": 0})
+        )
+        BookInfoLibrary.objects.filter(pk=bil.pk).update(quantity=F("quantity") + qty)
+        bil.refresh_from_db()
+
+        if bil.quantity > 0 and bil.status != "AVAILABLE":
+            bil.status = "AVAILABLE"
+            bil.save(update_fields=["status"])
+
+    return True, {
+        "library_id": getattr(library_id, "id", None),
+        "isbn": isbn.isbn,
+        "added_quantity": qty,
+        "total_quantity": bil.quantity,
+        "status": bil.status,
+    }
+
+def _decrease_stock_one(library_id, isbn: str, qty: int):
+    """
+    해당 도서관에서 특정 ISBN 재고(quantity) 감소.
+    qty는 1 이상 정수.
+    """
+
+    bookinfo = BookInfo.objects.filter(isbn=str(isbn)).first()
+    if not bookinfo:
+        return False, {"error": "책 정보가 없습니다. 먼저 BookInfo를 생성하세요.", "isbn": str(isbn)}
+
+    with transaction.atomic():
+        bil = (
+            BookInfoLibrary.objects
+            .select_for_update()
+            .filter(library_id=library_id, isbn=bookinfo)
+            .first()
+        )
+        if not bil:
+            return False, {"error": "해당 도서관에 재고 항목이 없습니다.", "isbn": bookinfo.isbn}
+
+        
+        if bil.status != "AVAILABLE":
+            return False, {"error": "구매 불가 상품입니다.", "status": bil.status}
+        
+        if bil.quantity < qty:
+            return False, {"error": "요청 권 수가 재고보다 많습니다.","isbn": bookinfo.isbn, "stock": bil.quantity, "requested": qty}
+        
+        
+        BookInfoLibrary.objects.filter(pk=bil.pk).update(quantity=F("quantity") - qty)
+        bil.refresh_from_db()
+
+        
+        if bil.quantity == 0:
+            bil.status = "PICKED" 
+            bil.save(update_fields=["status"])
+
+    return True, {
+        "library_id": getattr(library_id, "id", None),  
+        "isbn": bookinfo.isbn,                           
+        "removed_quantity": qty,                         
+        "total_quantity": bil.quantity,
+        "status": bil.status,
+    }
+
 # 책 나눔하기 마지막에 나눔하기 버튼
 class DonationAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_description="도서 일괄 기증(단권/다권) — 입력은 library_id와 ISBN(문자열 or 문자열 리스트)",
-        request_body=DonationSerializer,
+        request_body=StockBatchRequestSerializer,
         responses={201: "생성됨", 400: "검증 오류", 404: "도서관 없음"}
     )
     def post(self, request):
-        s = DonationSerializer(data=request.data)
+        s = StockBatchRequestSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         v = s.validated_data
 
@@ -50,49 +123,21 @@ class DonationAPIView(APIView):
             return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         results, success_cnt = [], 0
-        cache = {}
         success_books = [] # 기증 성공한 책 목록
+        point_cnt = 0
 
-        for isbn in v["isbn"]:
-            try:
-                info = cache.get(isbn) or ensure_bookinfo(isbn)
-                if not info:
-                    results.append({
-                        "isbn": isbn,
-                        "status": "ERROR",
-                        "code": "BOOKINFO_REQUIRED",
-                        "message": "책 정보가 없습니다."
-                    })
-                    continue
-                cache[isbn] = info
-
-                book = Book.objects.create(
-                    library=library,
-                    isbn=info,
-                    regular_price=info.regular_price,  # 정가 정보 없으면 None 저장
-                    sale_price=info.sale_price,
-                    donor_user=request.user if request.user.is_authenticated else None,
-                )
-
-                UserBook.objects.get_or_create(
-                    user=request.user,
-                    book=book,
-                    defaults={"status": Status.DONATED},
-                )
-
+        for item in v["books"]:
+            ok, out = _increase_stock_one(library, item["isbn"], item["quantity"])
+            if ok:
                 success_cnt += 1
-                success_books.append(book)
-                results.append({
-                    "isbn": info.isbn,
-                    "book_id": book.id,
-                    "status": "CREATED",
-                    "book_info": DonationDisplaySerializer(info).data
-                })
-            except Exception as e:
-                results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
+                results.append({"input": item, "status": "OK", "data": out})
+                point_cnt += item["quantity"] 
+            else:
+                results.append({"input": item, "status": "ERROR", "error": out})
+
             
         # 유저 포인트 증가 로직
-        points_earned = success_cnt * POINT_PER_BOOK
+        points_earned = point_cnt * POINT_PER_BOOK
         if request.user.is_authenticated and success_cnt > 0:
             user_info, _ = UserInfo.objects.get_or_create(user=request.user)
             user_info.points = (user_info.points or 0) + points_earned
@@ -107,14 +152,13 @@ class DonationAPIView(APIView):
                  type_="book_donated",
                  message=msg,
             )
-        
+
         return Response({
             "message": "일괄 기증 처리 완료",
             "library_id": library.id,
             "count_success": success_cnt,
-            "count_total": len(v["isbn"]),
+            "count_total": len(v["books"]),
             "points_earned": points_earned,
-            "items": results
         }, status=status.HTTP_201_CREATED)
 
 # 책 가져가기 마지막에 가져가기 버튼
@@ -123,56 +167,45 @@ class PickupAPIView(APIView):
 
     @swagger_auto_schema(
         operation_description="도서 픽업(단권/다권) — 입력은 book_id(정수 또는 정수 리스트)",
-        request_body=PickupSerializer,
+        request_body=StockBatchRequestSerializer,
         responses={200: "처리됨", 400: "검증 오류"}
     )
     def post(self, request):
-        s = PickupSerializer(data=request.data)
+        s = StockBatchRequestSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         v = s.validated_data
+        lib_id = v.get("library_id")
+        try:
+            lib_id = int(lib_id)
+        except (TypeError, ValueError):
+            return Response({"error": "library_id가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        library = Library.objects.filter(id=lib_id).first()
+        if not library:
+            return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         results, success_cnt = [], 0
-        seen = set()  # 같은 id가 중복으로 올 때 중복 처리 방지
-        success_books = [] # 픽업 성공한 책 목록
+        success_books = [] # 기증 성공한 책 목록
 
-        for bid in v["book_id"]:
-            if bid in seen:
-                results.append({"book_id": bid, "status": "SKIPPED", "message": "중복 요청"})
-                continue
-            seen.add(bid)
+        for item in v["books"]:
+            isbn_str = str(item["isbn"]).replace("-", "").strip()
+            qty = int(item["quantity"])
+            ok, out = _decrease_stock_one(library, isbn_str, qty)
+            if ok:
+                # FIX: 성공 카운트 변수 오타
+                success_cnt += 1
+                # results.append({"input": item, "status": "OK", "data": out})
+                success_books.append(isbn_str)
 
-            with transaction.atomic():
-                # 재고 한 권을 잠그고 가져오기
-                book = (Book.objects
-                        .select_for_update()
-                        .select_related("isbn", "library")
-                        .filter(id=bid)
-                        .first())
+                info = BookInfo.objects.filter(isbn=isbn_str).only("isbn", "title", "vector").first()
 
-                if not book:
-                    results.append({"book_id": bid, "status": "ERROR", "code": "NOT_FOUND", "message": "해당 책 없음"})
-                    continue
+                results.append({
+                    "isbn": item["isbn"],
+                    "status": "PICKED",
+                })
 
-                if book.status != "AVAILABLE":
-                    results.append({
-                        "book_id": bid, "status": "ERROR", "code": "NOT_AVAILABLE",
-                        "message": f"현재 상태: {book.status}"
-                    })
-                    continue
-
-                # 상태 전환
-                book.status = "PICKED"
-                book.save(update_fields=["status"])
-
-                UserBook.objects.get_or_create(
-                    user=request.user,
-                    book=book,
-                    defaults={"status": Status.PURCHASED},
-                )
-                info = book.isbn  # BookInfo
                 # 취향 벡터 계산 위해 추가---------------------
                 ui, _ = UserInfo.objects.get_or_create(user = request.user)
-
+                
                 book_v = deserialize_sparse(info.vector)
                 if book_v is not None:
                     # 활동 벡터 EMA 업데이트
@@ -189,31 +222,26 @@ class PickupAPIView(APIView):
                     ui.preference_vector = serialize_sparse(combined if combined is not None else new_act)
 
                     ui.save(update_fields=["preference_vector_activity", "preference_vector"])
-
+                    
+            else:
+                # 실패 케이스
+                results.append({"error":out})
                 # 기존 코드-------------------------
-                success_cnt += 1
-                success_books.append(book)
-                results.append({
-                    "book_id": book.id,
-                    "library_id": book.library_id,
-                    "status": "PICKED",
-                    # 정가 없으면 PickupDisplaySerializer가 sale_price=2000으로 내려줌
-                    "book_info": PickupDisplaySerializer(info).data
-                })
         
         # 알림 보내기
         if success_books:
-            first_title = getattr(success_books[0].isbn, "title", None) or "도서"
+            first_isbn = success_books[0]
+            _bi = BookInfo.objects.filter(isbn=first_isbn).only("title").first()
+            first_title = (_bi.title if _bi else None) or "도서"
             msg = message(first_title, len(success_books), "을 데려왔어요!\n좋은 시간 보내세요")
             push(
                 user=request.user,
                 type_="book_pickup",     
                 message=msg,
             )
-        # 실제 시도한(중복 제거된) 건수로 계산
-        attempted_cnt = len(seen)
+        # 실제 시도한 건수
+        attempted_cnt = len(v["books"])
 
-        
         if success_cnt == 0:
             msg = "픽업 실패"
             http_status = status.HTTP_409_CONFLICT
@@ -227,8 +255,8 @@ class PickupAPIView(APIView):
         return Response({
             "message": msg,                         
             "count_success": success_cnt,
-            "count_total": attempted_cnt,           
-            "items": results
+            "count_total": attempted_cnt,
+            "result": results
         }, status=http_status)      
 
 # 책 검색 목록에서 책을 선택했을 때
@@ -252,12 +280,11 @@ class BookDetailAPIView(APIView):
         
         # 도서관 별 책 집계
         qs = (
-            Book.objects
-            .filter(isbn__isbn=isbn)
-            .values('library_id', 'library__name', 'library__lat', 'library__long')
+            BookInfoLibrary.objects
+            .filter(isbn=isbn)
+            .values('library_id__id', 'library_id__name', 'library_id__lat', 'library_id__long')
             .annotate(
-                total_books=Count('id'),
-                available_books=Count('id', filter=Q(status='AVAILABLE')),
+                available_books=Sum('quantity', filter=Q(status='AVAILABLE')),
             )
             .filter(available_books__gt=0)
         )
@@ -274,8 +301,8 @@ class BookDetailAPIView(APIView):
         # 거리 계산
         libraries = []
         for row in qs:
-            la = row['library__lat']
-            lo = row['library__long']  
+            la = row['library_id__lat']
+            lo = row['library_id__long']  
             d_m = None
             if lat is not None and lng is not None and la is not None and lo is not None:
                 φ1, φ2 = radians(lat), radians(float(la))
@@ -284,10 +311,9 @@ class BookDetailAPIView(APIView):
                 d_m = int(round(dist_km * 1000))
 
             libraries.append({
-                "library_id": row["library_id"],
-                "name": row["library__name"],
+                "library_id": row["library_id__id"],
+                "name": row["library_id__name"],
                 "distance_m": d_m,                 # 좌표 없으면 None
-                "total_books": row["total_books"],
                 "available_books": row["available_books"],
             })
 
@@ -332,36 +358,40 @@ class PickUpBookDetailAPIView(APIView):
         isbn = request.GET.get("isbn")
         library_id = request.GET.get("library_id")
 
-        # 파라미터 검증
+        # 1) 파라미터 검증
         if not isbn or not library_id:
-            return Response({"error": "isbn과 library_id 모두 필요합니다."})
+            return Response({"error": "isbn과 library_id 모두 필요합니다."},
+                            status=status.HTTP_400_BAD_REQUEST)
         try:
             library_id = int(library_id)
         except ValueError:
-            return Response({"error": "library_id는 정수입니다."})
-        
-        # 도서관 및 책 존재 확인
-        library = Library.objects.filter(id=library_id).first()
+            return Response({"error": "library_id는 정수입니다."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # 2) 도서관/책 존재 확인
+        library = Library.objects.filter(id=library_id).only("id").first()
         if not library:
-            return Response({"error":"해당 도서관이 존재하지 않습니다."})
-        
+            return Response({"error": "해당 도서관이 존재하지 않습니다."},
+                            status=status.HTTP_404_NOT_FOUND)
+
         info = BookInfo.objects.filter(isbn=isbn).first()
         if not info:
-            return Response({"error":"해당 isbn의 책 정보가 없습니다."})
+            return Response({"error": "해당 isbn의 책 정보가 없습니다."},
+                            status=status.HTTP_404_NOT_FOUND)
         
-        # 해당 도서관에 AVAILABLE인 책 id
-        qs_ids = (
-            Book.objects
-            .filter(library_id=library_id, isbn_id=isbn, status="AVAILABLE")
-            .order_by("id")
-            .values_list("id", flat=True)
+        # 해당 도서관에 AVAILABLE인 책 정보 반환
+        qs = (
+            BookInfoLibrary.objects
+            .filter(library_id=library_id, isbn=isbn, status="AVAILABLE")
         )
-        book_ids = list(qs_ids)
-        available_cnt = len(book_ids)
+
+        available_cnt = int(qs.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0)
+
 
         # 도서관에 존재하는 책의 상태가 AVAILABLE가 아닐 때
         if available_cnt == 0:
-            return Response({"error" : "구매 불가 상품입니다."})
+            return Response({"error" : "구매 불가 상품입니다."},
+                            status=status.HTTP_409_CONFLICT,)
 
         info_data = PickupDisplaySerializer(info).data
         data = {
@@ -372,7 +402,7 @@ class PickUpBookDetailAPIView(APIView):
             "available_count": available_cnt,
         }
 
-        return Response({"data": data, "book_ids": book_ids}, status=status.HTTP_200_OK)
+        return Response({"data": data}, status=status.HTTP_200_OK)
 
 
         
