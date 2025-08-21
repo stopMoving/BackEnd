@@ -18,7 +18,7 @@ from bookinfo.serializers import (
     PickupDisplaySerializer,
     BookInfoUpsertSerializer,
     BookSummarySerializer,
-    BookInfoSerializer
+    # BookInfoSerializer
 )
 
 # 책 기증할 때 책 정보 불러오는 API
@@ -164,39 +164,39 @@ class BookSearchAPIView(APIView):
         return Response({"count": qs.count(), "results": results}, status=200)
     
 # 책 나눔하기 누르기전에 최종 책 확인 API
-class BookInfoBulkAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+# class BookInfoBulkAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
-        s = BookInfoSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        v = s.validated_data
+#     def get(self, request):
+#         s = BookInfoSerializer(data=request.data)
+#         s.is_valid(raise_exception=True)
+#         v = s.validated_data
 
-        results = []
-        cache = {}
+#         results = []
+#         cache = {}
 
-        for isbn in v["isbn"]:
-            try:
-                info = cache.get(isbn) or ensure_bookinfo(isbn)
-                if not info:
-                    results.append({
-                        "isbn": isbn,
-                        "status": "ERROR",
-                        "code": "BOOKINFO_REQUIRED",
-                        "message": "책 정보가 없습니다."
-                    })
-                    continue
-                cache[isbn] = info
+#         for isbn in v["isbn"]:
+#             try:
+#                 info = cache.get(isbn) or ensure_bookinfo(isbn)
+#                 if not info:
+#                     results.append({
+#                         "isbn": isbn,
+#                         "status": "ERROR",
+#                         "code": "BOOKINFO_REQUIRED",
+#                         "message": "책 정보가 없습니다."
+#                     })
+#                     continue
+#                 cache[isbn] = info
 
-                results.append({
-                    "isbn": info.isbn,
-                    "status": "CREATED",
-                    "book_info": DonationDisplaySerializer(info).data
-                })
-            except Exception as e:
-                results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
+#                 results.append({
+#                     "isbn": info.isbn,
+#                     "status": "CREATED",
+#                     "book_info": DonationDisplaySerializer(info).data
+#                 })
+#             except Exception as e:
+#                 results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
 
-        return Response(results, status=status.HTTP_201_CREATED)
+#         return Response(results, status=status.HTTP_201_CREATED)
 
 
         

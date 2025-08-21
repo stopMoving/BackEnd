@@ -95,7 +95,7 @@ class BookInfoLibrary(models.Model):
 
             # expired_at = median_date + 30일
             if self.expired_at is None:
-                self.expired_at = self.created_at + timedelta(days=30)
+               self.expired_at = (self.median_date or base_created) + timedelta(days=30)
 
         super().save(*args, **kwargs)
     
@@ -118,4 +118,4 @@ class BookInfoLibrary(models.Model):
         self.expired_at = self.median_date + timedelta(days=30)
 
         if save:
-            self.save(update_fields=["median_date", "expired_at", "updated_at"])
+            self.save(update_fields=["median_date", "expired_at"])

@@ -2,7 +2,6 @@
 import re
 from rest_framework import serializers
 from .models import BookInfo
-from books.serializers import IsbnListField
 
 from decimal import Decimal, ROUND_FLOOR
 DISCOUNT_RATE = Decimal("0.15")
@@ -63,7 +62,7 @@ class PickupDisplaySerializer(BookInfoPublicBaseSerializer):
 
     class Meta(BookInfoPublicBaseSerializer.Meta):
         # 요구사항: 제목, 저자, 출판사, 정가, 판매가, isbn
-        fields = ("isbn", "title", "author", "publisher", "regular_price", "sale_price", "cover_url")
+        fields = ("isbn", "title", "author", "publisher", "published_date", "regular_price", "sale_price", "cover_url")
 
     def get_sale_price(self, obj):
         # 정가 없으면 판매가는 고정 2000원
@@ -93,5 +92,5 @@ class BookDetailDisplaySerializer(BookInfoPublicBaseSerializer):
         # 정가 있으면 85% 내림
         return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
     
-class BookInfoSerializer(serializers.Serializer):
-    isbn = IsbnListField()  # 단/복수 모두 여기로
+# class BookInfoSerializer(serializers.Serializer):
+#     isbn = IsbnListField()  # 단/복수 모두 여기로
