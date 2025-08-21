@@ -34,7 +34,12 @@ VECTOR_PICKLE_PATH = os.path.join(VECTOR_DATA_DIR, "vectorizer.pkl")
 # 수정: 0.7 -> 0.85
 RECOMMEND_ALPHA = 0.85 # 통합 = a*설문 + (1-a)+활동
 ACTIVITY_EMA_BETA = 0.8 # 활동벡터 EMA: new = b*old + (1-b)*new_book
-
+# 추천 튜닝 파라미터
+RECOMMEND_MMR_POOL = 100 # 초기 상위 N개 후보에서 리랭킹
+RECOMMEND_MMR_LAMBDA = 0.3 # 연관도 ↑, 분포 ↓
+RECOMMEND_SURVEY_BOOST = 0.25 # combined mode: 설문 벡터 가중치
+RECOMMEND_RECENT_BOOST = 0.30 # activity mode: 최근 픽업 벡터 가중치
+RECOMMEND_RECENT_N = 3 # 최근 N권 평균으로 최근 벡터 구성
 secret_file = os.path.join(BASE_DIR, 'secrets.json') 
 
 with open(secret_file) as f:
