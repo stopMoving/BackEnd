@@ -26,10 +26,10 @@ from preferences.services.embeddings import deserialize_sparse, serialize_sparse
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
 DISCOUNT_RATE = Decimal("0.15")
-
+# 《》
 def message(first_title: str, count: int, verb: str) -> str:
     # verb: "기증 접수", "픽업 완료"
-    return f"<<{first_title}>> {verb}" if count == 1 else f"<<{first_title}>> 외 {count-1}권 {verb}"
+    return f"《{first_title}》 {verb}" if count == 1 else f"《{first_title}》 외 {count-1}권 {verb}"
 
 # 책 나눔하기 마지막에 나눔하기 버튼
 class DonationAPIView(APIView):
