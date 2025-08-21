@@ -16,7 +16,7 @@ from django.db.models import Q, Count, F, Value, Sum
 from math import radians, sin, cos, acos
 from decimal import Decimal
 from django.db import transaction
-from users.models import UserInfo, UserBook, Status
+from users.models import UserInfo, Status
 from notification.service import push
 from notification.models import Notification as N
 from django.conf import settings

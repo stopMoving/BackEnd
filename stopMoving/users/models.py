@@ -2,6 +2,7 @@ from django.db import models
 from accounts.models import User
 from books.models import Book
 from django.conf import settings
+from bookinfo.models import BookInfo
 
 # Create your models here.
 class UserInfo(models.Model):
@@ -30,12 +31,13 @@ class UserBook(models.Model):
         related_name="user_books",
         db_column="user_id",
     )
-    book = models.ForeignKey(
-        'books.Book',
-        on_delete=models.CASCADE,  
-        db_column='book_id',
-        null=False, 
-        blank=False,
+    bookinfo = models.ForeignKey(
+        BookInfo,
+        to_field='isbn',              # ← BookInfo.isbn이 PK 또는 UNIQUE 여야 함
+        on_delete=models.PROTECT,
+        related_name='userbook_links',
+        related_query_name='userbook',
+        db_column='isbn',
     )
     status = models.CharField( # 상태: 기증/구매
         max_length=20,
@@ -46,11 +48,11 @@ class UserBook(models.Model):
     quantity = models.IntegerField(default=0)
 
     class Meta:
-        unique_together = (('user', 'book'),) # 기증한 책을 기증자가 못가져감 -> 삭제 시 기증자가 기증한 책 가져갈 수 있음
+        unique_together = (('user', 'bookinfo'),) # 기증한 책을 기증자가 못가져감 -> 삭제 시 기증자가 기증한 책 가져갈 수 있음
         
         indexes = [
             models.Index(fields=["user", "status", "created_at"]),
-            models.Index(fields=["book", "created_at"]),
+            models.Index(fields=["bookinfo", "created_at"]),
         ]
       
 
