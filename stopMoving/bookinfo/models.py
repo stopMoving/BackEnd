@@ -53,7 +53,7 @@ class BookInfoLibrary(models.Model):
     ]
 
     library_id = models.ForeignKey(
-        Library, to_field="library_id", on_delete=models.CASCADE,
+        Library, to_field="id", on_delete=models.CASCADE,
         related_name="bookinfo", db_column="library_id"
     )
 
