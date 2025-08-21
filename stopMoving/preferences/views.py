@@ -21,7 +21,7 @@ from django.utils import timezone
 import numpy as np
 from scipy import sparse # csr 타입 위해 import
 
-SURVEY_MIN_BOOKS = 5
+SURVEY_MIN_BOOKS = 3
 
 class ExtractKeywordsView(APIView):
     permission_classes = [IsAuthenticated]  # 회원가입 후 바로 액세스 토큰으로 인증
