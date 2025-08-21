@@ -11,6 +11,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import Library
 from books.models import Book
+from bookinfo.models import BookInfoLibrary
 from .exceptions import LibraryNotFound, BookNotFound
 
 class LibraryDetailAPIView(APIView):
@@ -43,9 +44,9 @@ class LibraryBooksAPIView(APIView):
         
         # 2) 상태가 AVAILABLE인 책만 필터링 + BookInfo 조인
         qs = (
-            Book.objects
-            .filter(library_id=library.id, status="AVAILABLE")  # 대문자 주의
-            .select_related("isbn")  # Book.isbn(FK) → BookInfo
+            BookInfoLibrary.objects
+            .filter(library_id=library.id, status="AVAILABLE")
+            .select_related("isbn") 
             .only(
                 "id", "status",
                 "isbn__isbn", "isbn__title", "isbn__author",
