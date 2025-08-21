@@ -22,6 +22,7 @@ from notification.models import Notification as N
 from django.conf import settings
 from django.db import transaction
 from preferences.services.embeddings import deserialize_sparse, serialize_sparse, weighted_sum, l2_normalize
+from users.models import UserBook
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -123,15 +124,32 @@ class DonationAPIView(APIView):
             return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
         results, success_cnt = [], 0
-        success_books = [] # 기증 성공한 책 목록
+        success_isbn = [] # 기증 성공한 책 목록
+        total_qty = 0
         point_cnt = 0
 
         for item in v["books"]:
-            ok, out = _increase_stock_one(library, item["isbn"], item["quantity"])
+            isbn_str = str(item["isbn"]).replace("-", "").strip()
+            qty = int(item["quantity"])
+
+            ok, out = _increase_stock_one(library, isbn_str, qty)
             if ok:
                 success_cnt += 1
                 results.append({"input": item, "status": "OK", "data": out})
-                point_cnt += item["quantity"] 
+                point_cnt += qty
+                total_qty += qty
+                success_isbn.append(isbn_str)
+
+                with transaction.atomic():
+                    ub, created = UserBook.objects.select_for_update().get_or_create(
+                        user=request.user,
+                        bookinfo_id=isbn_str,  # to_field='isbn'
+                        status="DONATED",
+                        defaults={"status": "DONATED", "quantity": 0},
+                    )
+                    ub.quantity = (ub.quantity or 0) + qty
+                    ub.save(update_fields=["quantity"])
+
             else:
                 results.append({"input": item, "status": "ERROR", "error": out})
 
@@ -144,9 +162,10 @@ class DonationAPIView(APIView):
             user_info.save(update_fields=["points"])
         
         # 알림 보내기
-        if success_books:
-            first = getattr(success_books[0].isbn, "title", "도서")
-            base_msg = message(first, len(success_books),"을 나눔했어요!")
+        if total_qty > 0:
+            bi = BookInfo.objects.filter(isbn=success_isbn[0]).only("title").first()
+            first_title = (bi.title if bi else None) or "도서"
+            base_msg = message(first_title, total_qty,"을 나눔했어요!")
             msg = f"{base_msg}\n+{points_earned:,}P 적립"
             push(user=request.user,
                  type_="book_donated",
@@ -202,6 +221,16 @@ class PickupAPIView(APIView):
                     "isbn": item["isbn"],
                     "status": "PICKED",
                 })
+                with transaction.atomic():
+                    ub, created = UserBook.objects.select_for_update().get_or_create(
+                        user=request.user,
+                        bookinfo_id=isbn_str,  # to_field='isbn'
+                        status="PURCHASED",
+                        defaults={"status": "PURCHASED", "quantity": 0},
+                    )
+                    ub.quantity = (ub.quantity or 0) + int(qty)
+                    # update_fields에 'status'도 포함하려면 위 주석 처리 해제 시 함께 추가
+                    ub.save(update_fields=["quantity", "status"])
 
                 # 취향 벡터 계산 위해 추가---------------------
                 ui, _ = UserInfo.objects.get_or_create(user = request.user)
