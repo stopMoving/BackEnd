@@ -54,6 +54,7 @@ class DonateBookLookUpAPIView(APIView):
             "ttbkey": settings.API_KEY,
             "itemIdType": "ISBN13" if len(isbn) == 13 else "ISBN",
             "ItemId": isbn,
+            "Cover": "Big",
             "output": "js",
             "Version": "20131101",
             "OptResult": "packing",
