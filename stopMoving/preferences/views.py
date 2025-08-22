@@ -21,8 +21,10 @@ from django.conf import settings
 from django.utils import timezone
 import numpy as np
 from scipy import sparse # csr 타입 위해 import
+from books.services import CATEGORIES
 
 SURVEY_MIN_BOOKS = 3
+CATEGORIES_SET = set(CATEGORIES)
 
 class ExtractKeywordsView(APIView):
     permission_classes = [IsAuthenticated]  # 회원가입 후 바로 액세스 토큰으로 인증
@@ -114,7 +116,31 @@ class RecommendView(APIView):
 
         ui = UserInfo.objects.get(user=request.user)
         results = []
-        preference_booklist = ui.preference_book_combined if mode=="combined" else ui.preference_book_activity
+        cat = None
+
+        if mode == "combined":
+            preference_booklist = ui.preference_book_combined
+        else:
+            cat = (request.query_params.get("category") or "").strip()
+            if cat not in CATEGORIES_SET:
+                return Response(
+                    {
+                        "error_code": "INVALID_CATEGORY",
+                        "messsage": f"허용되지 않은 category: {cat}",
+                        "allowed": CATEGORIES,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            raw = ui.preference_book_activity
+            if isinstance(raw, dict):
+                isbns = raw.get(cat, [])
+            else:
+                isbns = []
+            preference_booklist = []
+            for x in isbns:
+                s = str(x)
+                preference_booklist.append(s)
+        
         for pb in preference_booklist:
             b=BookInfo.objects.get(isbn=pb)
             results.append({
@@ -124,7 +150,6 @@ class RecommendView(APIView):
                 "cover_url": b.cover_url,
                 "category": b.category
             })
-
-        response_data = {"mode": mode, "results": results}
-
+        
+        response_data = {"mode": mode, "category": cat, "results": results}
         return Response(response_data, status=status.HTTP_200_OK)
