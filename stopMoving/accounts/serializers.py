@@ -12,9 +12,31 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-
         # 필요한 필드값만 지정
         fields = ['username','password1', 'password2', 'nickname']
+    
+    def to_internal_value(self, data):
+        # 공백 문자열도 누락으로 처리
+        def is_missing(v):
+            return v is None or (isinstance(v, str) and v.strip() == "")
+
+        msgs = {
+            "username": "아이디를 입력해 주세요.",
+            "password1": "비밀번호를 입력해 주세요.",
+            "password2": "비밀번호 확인을 입력해 주세요.",
+            "nickname": "닉네임을 입력해 주세요.",
+        }
+        missing = {}
+        for f in ("username", "password1", "password2", "nickname"):
+            v = data.get(f, None)
+            if is_missing(v):
+                missing[f] = msgs[f]
+
+        if missing:
+            # 필수값 누락이면 여기서 바로 종료(이후 형식/중복 검사는 수행되지 않음)
+            raise serializers.ValidationError(missing)
+
+        return super().to_internal_value(data)
     
     # create() 재정의
     def create(self, validated_data):
