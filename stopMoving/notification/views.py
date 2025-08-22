@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Notification
 from .serializers import NotificationSerializer
-
+from django.db import transaction
 
 class NotificationListView(APIView):
     """
@@ -24,6 +24,11 @@ class NotificationListView(APIView):
         qs = (Notification.objects
               .filter(user=request.user, created_at__gte=since)
               .order_by("-created_at"))
+        
+        with transaction.atomic():  # ADDED: 대량 업데이트 원자성 보장
+            (Notification.objects
+             .filter(user=request.user, created_at__gte=since, is_read=False)  # CHANGED: 범위 제한
+             .update(is_read=True, read_at=timezone.now()))
         
         total = qs.count()
         if total==0:
@@ -43,3 +48,19 @@ class NotificationListView(APIView):
             "size": size,
             "results": data
         }, status=status.HTTP_200_OK)
+    
+class NotificationUnreadCountView(APIView):
+    """
+    알림 미읽음 개수 (30일 이내 범위)
+    페이지 진입 전 헤더 뱃지/아이콘 등에 사용
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        since = timezone.now() - timedelta(days=30)
+        unread = Notification.objects.filter(
+            user=request.user,
+            created_at__gte=since,
+            is_read=False
+        ).count()
+        return Response({"unread": unread}, status=status.HTTP_200_OK)
