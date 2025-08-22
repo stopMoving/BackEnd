@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import UserInfo, UserBook
 from library.models import Library
 from books.models import Book
+from bookinfo.models import BookInfo
 
 # 마이페이지에 표시할 사용자 정보
 class UserProfileSerializer(serializers.Serializer):
@@ -19,17 +20,18 @@ class UserBookSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField()
     
     # 책 정보
-    userbook_id = serializers.IntegerField(source='book.id')
-    book_title = serializers.CharField(source='book.isbn.title')
-    cover = serializers.URLField(source='book.isbn.cover_url')
+    bookinfo = serializers.IntegerField(source='bookinfo.isbn', read_only=True)
+    title = serializers.CharField(source='bookinfo.title', read_only=True)
+    cover = serializers.URLField(source='bookinfo.cover_url', read_only=True)
+    quantity = serializers.IntegerField()
     # 도서관 정보
-    library_id = serializers.IntegerField(source='book.library.id')
-    library_name = serializers.CharField(source='book.library.name')
+    library_id = serializers.IntegerField()
+    library_name = serializers.CharField(read_only=True)
 
     class Meta:
         model = UserBook
         fields = (
-            'userbook_id', 'book_title', 'cover',
+            'bookinfo', 'title', 'cover', 'quantity',
             'status', 'created_at', 'library_id', 'library_name'
         )
 
