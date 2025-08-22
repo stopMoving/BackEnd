@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Library
 from bookinfo.models import BookInfo, BookInfoLibrary
 from books.models import Book
+from .models import LibraryImage
 
 class LibraryInfoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -27,3 +28,9 @@ class LibraryNameSerializer(serializers.ModelSerializer):
     class Meta:
         model=Library
         fields = ("id", "name")
+
+
+class ImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LibraryImage
+        fields = "__all__"

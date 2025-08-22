@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import UserInfo, UserBook
+from .models import UserInfo, UserBook, UserImage
 from library.models import Library
 from books.models import Book
 from bookinfo.models import BookInfo
@@ -37,3 +37,9 @@ class UserBookSerializer(serializers.ModelSerializer):
 
 class MyLibraryModifySerializer(serializers.Serializer):
     library_id = serializers.IntegerField()
+
+
+class ImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserImage
+        fields = "__all__"

@@ -9,10 +9,14 @@ from rest_framework import status, permissions
 from .serializer import LibraryHoldingItemSerializer, LibraryInfoSerializer, LibraryNameSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from .models import Library
+from .models import Library, LibraryImage
 from books.models import Book
 from bookinfo.models import BookInfoLibrary
 from .exceptions import LibraryNotFound, BookNotFound
+from django.core.files.storage import default_storage  
+from .serializer import ImageSerializer
+from django.conf import settings
+import boto3
 
 class LibraryDetailAPIView(APIView):
     @swagger_auto_schema(
@@ -74,3 +78,40 @@ class LibraryListAPIView(APIView):
         qs = Library.objects.all().only("id", "name") # 사이드탭: id랑 이름만 표시
         serializer = LibraryNameSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class LibraryImageUploadView(APIView):
+    def post(self, request):
+        if 'image' not in request.FILES:
+            return Response({"error": "No image file"}, status=status.HTTP_400_BAD_REQUEST)
+
+        image_file = request.FILES['image']
+
+        s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_REGION
+        )
+
+        # S3에 파일 저장
+        file_path = f"uploads/{image_file.name}"
+        # S3에 파일 업로드
+        try:
+            s3_client.put_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=file_path,
+                Body=image_file.read(),
+                ContentType=image_file.content_type,
+            )
+        except Exception as e:
+            return Response({"error": f"S3 Upload Failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # 업로드된 파일의 URL 생성
+        image_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{file_path}"
+
+        # DB에 저장
+        image_instance = LibraryImage.objects.create(image_url=image_url)
+        serializer = ImageSerializer(image_instance)
+
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
