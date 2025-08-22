@@ -46,7 +46,8 @@ class DonateBookLookUpAPIView(APIView):
         # 1) DB 먼저
         obj = BookInfo.objects.filter(isbn=isbn).first()
         if obj:
-            data = DonationDisplaySerializer(obj).data
+            #기증이지만 saleprice필요해서 픽업시리얼라이저
+            data = PickupDisplaySerializer(obj).data
             data["meta"] = {"source": "db"}
             return Response(data, status=200)
 
@@ -91,7 +92,8 @@ class DonateBookLookUpAPIView(APIView):
         except IntegrityError:
             obj = BookInfo.objects.get(isbn=isbn)
 
-        data = DonationDisplaySerializer(obj).data
+        # 기증이지만 saleprice필요해서 pickup시리얼라이저 사용
+        data = PickupDisplaySerializer(obj).data
         data["meta"] = {"source": "aladin"}
         return Response(data, status=201)
 

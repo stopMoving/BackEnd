@@ -54,6 +54,7 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
 
 # (나눔 화면 전용) 필요한 필드만
 class DonationDisplaySerializer(BookInfoPublicBaseSerializer):
+    
     class Meta(BookInfoPublicBaseSerializer.Meta):
         fields = ("isbn", "title", "author", "publisher", "cover_url", "published_date")
 
