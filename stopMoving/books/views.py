@@ -260,7 +260,8 @@ class PickupAPIView(APIView):
         
         # 취향 기반 추천
         preference_books_combined(request.user)
-        preference_books_activity(request.user)        
+        preference_books_activity(request.user)
+                
 
         # 알림 보내기
         if success_books:
