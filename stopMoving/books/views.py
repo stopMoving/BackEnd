@@ -118,8 +118,14 @@ class DonationAPIView(APIView):
         s = StockBatchRequestSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         v = s.validated_data
+        lib_id = v.get("library_id")
 
-        library = Library.objects.filter(id=v["library_id"]).first()
+        try:
+            lib_id = int(lib_id)
+        except (TypeError, ValueError):
+            return Response({"error": "library_id가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        library = Library.objects.filter(id=lib_id).first()
         if not library:
             return Response({"error": "해당 도서관이 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -145,6 +151,7 @@ class DonationAPIView(APIView):
                         user=request.user,
                         bookinfo_id=isbn_str,  # to_field='isbn'
                         status="DONATED",
+                        library_id=lib_id,
                         defaults={"status": "DONATED", "quantity": 0},
                     )
                     ub.quantity = (ub.quantity or 0) + qty
@@ -226,6 +233,7 @@ class PickupAPIView(APIView):
                         user=request.user,
                         bookinfo_id=isbn_str,  # to_field='isbn'
                         status="PURCHASED",
+                        library_id=lib_id,
                         defaults={"status": "PURCHASED", "quantity": 0},
                     )
                     ub.quantity = (ub.quantity or 0) + int(qty)
