@@ -8,11 +8,13 @@ from rest_framework import status, permissions
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Q, Func, F, Value
+from django.db.models import Count, Q, Func, F, Value,Window
 from .services import ensure_bookinfo, get_sale_price
 from users.models import UserInfo
 from .models import BookInfo
 import random
+from django.db.models.expressions import RawSQL
+from django.db.models.functions import RowNumber
 from bookinfo.serializers import (
     DonationDisplaySerializer,
     PickupDisplaySerializer,
@@ -211,6 +213,24 @@ class BookListView(APIView):
         responses={200: BookSummarySerializer(many=True)}
     )
     def get(self, request):
-        qs = BookInfo.objects.all().order_by("title")
-        data = BookSummarySerializer(qs, many=True).data
-        return Response(data)
+        qs = (
+            BookInfo.objects
+            .annotate(
+                second_cat=RawSQL(
+                    "SUBSTRING_INDEX(SUBSTRING_INDEX(category, '>', 2), '>', -1)", []
+                ),
+                rn=Window(
+                    expression=RowNumber(),
+                    partition_by=[F("second_cat")],
+                    order_by=F("published_date").desc(),
+                ),
+            )
+            .filter(rn=1)
+            .values("second_cat", "cover_url", "isbn")     # <- 충돌 회피
+            .order_by("second_cat")
+        )
+
+        result = [{"category": row["second_cat"], "cover_url": row["cover_url"], "isbn": row["isbn"]} for row in qs]
+        return Response(result, status=status.HTTP_200_OK)
+    
+
