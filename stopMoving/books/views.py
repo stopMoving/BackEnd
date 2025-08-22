@@ -145,17 +145,12 @@ class DonationAPIView(APIView):
                 point_cnt += qty
                 total_qty += qty
                 success_isbn.append(isbn_str)
-
-                with transaction.atomic():
-                    ub, created = UserBook.objects.select_for_update().get_or_create(
-                        user=request.user,
-                        bookinfo_id=isbn_str,  # to_field='isbn'
-                        status="DONATED",
-                        library_id=lib_id,
-                        defaults={"status": "DONATED", "quantity": 0},
-                    )
-                    ub.quantity = (ub.quantity or 0) + qty
-                    ub.save(update_fields=["quantity"])
+                UserBook.objects.create(
+                    user=request.user,
+                    bookinfo_id=isbn_str,  # to_field='isbn'
+                    status="DONATED",
+                    library_id=lib_id,
+                    quantity=qty)
 
             else:
                 results.append({"input": item, "status": "ERROR", "error": out})
@@ -229,16 +224,13 @@ class PickupAPIView(APIView):
                     "status": "PICKED",
                 })
                 with transaction.atomic():
-                    ub, created = UserBook.objects.select_for_update().get_or_create(
+                    ub = UserBook.objects.create(
                         user=request.user,
                         bookinfo_id=isbn_str,  # to_field='isbn'
                         status="PURCHASED",
                         library_id=lib_id,
-                        defaults={"status": "PURCHASED", "quantity": 0},
+                        quantity=qty
                     )
-                    ub.quantity = (ub.quantity or 0) + int(qty)
-                    # update_fields에 'status'도 포함하려면 위 주석 처리 해제 시 함께 추가
-                    ub.save(update_fields=["quantity", "status"])
 
                 # 취향 벡터 계산 위해 추가---------------------
                 ui, _ = UserInfo.objects.get_or_create(user = request.user)
