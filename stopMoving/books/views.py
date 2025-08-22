@@ -23,6 +23,7 @@ from django.conf import settings
 from django.db import transaction
 from preferences.services.embeddings import deserialize_sparse, serialize_sparse, weighted_sum, l2_normalize
 from users.models import UserBook
+from .services import preference_books_activity, preference_books_combined
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -265,6 +266,10 @@ class PickupAPIView(APIView):
                 results.append({"error":out})
                 # 기존 코드-------------------------
         
+        # 취향 기반 추천
+        preference_books_combined(request.user)
+        preference_books_activity(request.user)        
+
         # 알림 보내기
         if success_books:
             first_isbn = success_books[0]

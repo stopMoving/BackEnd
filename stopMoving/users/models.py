@@ -15,7 +15,8 @@ class UserInfo(models.Model):
     last_survey_at = models.DateTimeField(blank=True, null=True)
     points = models.BigIntegerField(default=0)
     my_lib_ids = models.JSONField(default=list, blank=True)  # 내 도서관 id들을 리스트로 저장
-    preference_book = models.JSONField(default=list, blank=True) # 선호 책 추천 목록 (1~5등)
+    preference_book_combined = models.JSONField(default=list, blank=True) # 선호 책 추천 목록 - 설문+수령 기반 (1~5등)
+    preference_book_activity = models.JSONField(default=list, blank=True) # 선호 책 추천 목록 - 수령 기반 (1~5등)
 
     updated_at = models.DateTimeField(auto_now=True)
 
