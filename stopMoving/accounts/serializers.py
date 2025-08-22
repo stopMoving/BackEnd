@@ -16,7 +16,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ['username','password1', 'password2', 'nickname']
     
     def to_internal_value(self, data):
-        # 공백 문자열도 누락으로 처리
+        # 공백도 누락으로 처리
         def is_missing(v):
             return v is None or (isinstance(v, str) and v.strip() == "")
 
@@ -26,17 +26,38 @@ class RegisterSerializer(serializers.ModelSerializer):
             "password2": "비밀번호 확인을 입력해 주세요.",
             "nickname": "닉네임을 입력해 주세요.",
         }
-        missing = {}
+
+        # (1) 누락 체크: username → password1 → password2 → nickname
         for f in ("username", "password1", "password2", "nickname"):
             v = data.get(f, None)
             if is_missing(v):
-                missing[f] = msgs[f]
+                raise serializers.ValidationError({f: msgs[f]})
 
-        if missing:
-            # 필수값 누락이면 여기서 바로 종료(이후 형식/중복 검사는 수행되지 않음)
-            raise serializers.ValidationError(missing)
+        # (2) 형식/중복 체크: username → password1 → nickname
+        #     기존 validate_* 메서드를 직접 호출해 "첫 번째"만 에러 처리
+        #     (이렇게 하면 DRF가 모든 필드 에러를 누적 수집하지 않음)
+        try:
+            _ = self.validate_username(str(data.get("username")))
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"username": e.detail[0] if isinstance(e.detail, list) else e.detail})
 
-        return super().to_internal_value(data)
+        try:
+            _ = self.validate_password1(str(data.get("password1")))
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"password1": e.detail[0] if isinstance(e.detail, list) else e.detail})
+
+        try:
+            _ = self.validate_nickname(str(data.get("nickname")))
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"nickname": e.detail[0] if isinstance(e.detail, list) else e.detail})
+
+        # 통과 시 원래처럼 내부 dict 반환 (필요 시 strip)
+        return {
+            "username": str(data.get("username")).strip(),
+            "password1": str(data.get("password1")),
+            "password2": str(data.get("password2")),
+            "nickname": str(data.get("nickname")).strip(),
+        }
     
     # create() 재정의
     def create(self, validated_data):
