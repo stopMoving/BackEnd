@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 # Create your models here.
 class User(AbstractUser):
     nickname = models.CharField(max_length=10, blank=True, null=True)
+    is_survey = models.BooleanField(default=False)
 
     # 모델 함수
     @staticmethod

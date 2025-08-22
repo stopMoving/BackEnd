@@ -105,6 +105,7 @@ class AuthView(APIView):
                         "id": user.id,
                         "username": user.username,
                         "nickname": user.nickname,
+                        "is_survey" : user.is_survey
                     },
                     "message": "로그인 성공!",
                     "token": {

@@ -72,6 +72,11 @@ class ExtractKeywordsView(APIView):
         ui.survey_done = True
         ui.last_survey_at = timezone.now()
 
+        # 설문조사 완료 후 설문조사 여부 수정
+        user = request.user
+        user.is_survey = True
+        user.save(update_fields=["is_survey"])
+
         # 동일 TF-IDF 공간으로 설문 벡터화
         vec = load_vectorizer()
         survey_text = " ".join(keywords)
