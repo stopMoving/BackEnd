@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Library
-from bookinfo.models import BookInfo
+from bookinfo.models import BookInfo, BookInfoLibrary
 from books.models import Book
 
 class LibraryInfoSerializer(serializers.ModelSerializer):
@@ -14,10 +14,11 @@ class LibraryHoldingItemSerializer(serializers.ModelSerializer):
     author = serializers.CharField(source="isbn.author")
     publisher = serializers.CharField(source="isbn.publisher")
     cover = serializers.URLField(source="isbn.cover_url", allow_blank=True, required=False)
+    quantity = serializers.IntegerField()
 
     class Meta:
-        model = Book
-        fields = ["isbn", "title", "author", "publisher", "cover"]
+        model = BookInfoLibrary
+        fields = ["isbn", "title", "author", "publisher", "cover", "quantity"]
         extra_kwargs = {
             "cover": {"help_text": "표지 이미지 URL"}
         }
