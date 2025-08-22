@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404, render
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -55,10 +56,13 @@ class MyDonatedBooksView(APIView):
         responses={200: UserBookSerializer(many=True)},
     )
     def get(self, request):
+        library_name_sq = Library.objects.filter(id=OuterRef('library_id')).values('name')
+
         qs = (
             UserBook.objects
             .filter(user=request.user, status=Status.DONATED)
-            .select_related('book', 'book__library')
+            .select_related('bookinfo')
+            .annotate(library_name=Subquery(library_name_sq))
             .order_by('-created_at')
         )
         # 빈 결과 처리
@@ -77,10 +81,12 @@ class MyPurchasedBooksView(APIView):
         responses={200: UserBookSerializer(many=True)},
     )
     def get(self, request):
+        library_name_sq = Library.objects.filter(id=OuterRef('library_id')).values('name')
         qs = (
             UserBook.objects
             .filter(user=request.user, status=Status.PURCHASED)
-            .select_related('book', 'book__library')
+            .select_related('bookinfo')
+            .annotate(library_name=Subquery(library_name_sq))
             .order_by('-created_at')
         )
         # 빈 결과 처리
