@@ -141,8 +141,8 @@ class BookSearchAPIView(APIView):
             msg = f'"{search_q}" 은\n북작북작에 나눔되지 않았습니다.'
 
             isbn_list = []
-            ui = UserInfo.objects.filter(user=request.user).only('preference_book').first()
-            isbn_list = ui.preference_book
+            ui = UserInfo.objects.filter(user=request.user).only('preference_book_combined').first()
+            isbn_list = ui.preference_book_combined
             rand_index = random.randint(0,4)
             recommend_isbn = isbn_list[rand_index]
 
