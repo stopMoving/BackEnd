@@ -122,6 +122,6 @@ class LibraryImageUploadView(APIView):
     
 class LibraryDetailView(APIView):
     permission_classes = [permissions.AllowAny]  # 공개면
-    def get(self, request, pk):
-        lib = get_object_or_404(Library, pk=pk)
+    def get(self, request, library_id):
+        lib = get_object_or_404(Library, pk=library_id)
         return Response(LibraryDetailSerializer(lib).data)
