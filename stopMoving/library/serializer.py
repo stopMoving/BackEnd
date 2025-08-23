@@ -42,7 +42,7 @@ class LibraryImageSerializer(serializers.ModelSerializer):
         fields = ("id", "image_url")
 
 class LibraryDetailSerializer(serializers.ModelSerializer):
-    images = LibraryImageSerializer(many=True, read_only=True)
+    image = Library
     class Meta:
         model = Library
-        fields = ("id", "name", "cover_url")
+        fields = ("id", "name", "library_image_url")

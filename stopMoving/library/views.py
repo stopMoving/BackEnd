@@ -117,7 +117,8 @@ class LibraryImageUploadView(APIView):
             image_url=image_url)
         
         serializer = ImageSerializer(image_instance)
-        Library.objects.filter(id=library_id).update(library_image_url=image_url)
+        lib.library_image_url = image_url
+        lib.save(update_fields=["library_image_url"])
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
