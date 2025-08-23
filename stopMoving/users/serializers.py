@@ -53,4 +53,4 @@ class UserImageSerializer(serializers.Serializer):
 class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserInfo
-        field = ("user_image_url")
+        fields = ("user_image_url",)

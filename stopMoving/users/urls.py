@@ -7,6 +7,6 @@ urlpatterns = [
     path('purchased-books/', MyPurchasedBooksView.as_view(), name='my-purchased-books'),
     path('my-libraries/modify/', MyLibraryModifyAPIView.as_view(), name='my-library-modify'),
     path('my-libraries/list/', MyLibraryListAPIView.as_view(), name='my-libraries-list'),
-    path('upload/', UserImageUploadView.as_view(), name='image-upload'),
-    path('image/<int:user_id>', UserImageView.as_view(), name='image'),
+    path('upload/<int:user_id>/', UserImageUploadView.as_view(), name='image-upload'),
+    path('image/<int:user_id>/', UserImageView.as_view(), name='image'),
 ]
