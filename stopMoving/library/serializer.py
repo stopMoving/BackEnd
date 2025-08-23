@@ -34,3 +34,15 @@ class ImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = LibraryImage
         fields = "__all__"
+
+# serializers.py
+class LibraryImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LibraryImage
+        fields = ("id", "image_url")
+
+class LibraryDetailSerializer(serializers.ModelSerializer):
+    images = LibraryImageSerializer(many=True, read_only=True)
+    class Meta:
+        model = Library
+        fields = ("id", "name", "cover_url")
