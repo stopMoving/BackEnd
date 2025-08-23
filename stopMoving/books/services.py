@@ -1,10 +1,15 @@
 from django.conf import settings
-from django.db.models import Q
-from requests import Response, request
+from django.db.models import F
+from django.db import transaction
+from django.utils.text import Truncator
+from rest_framework.response import Response
 from preferences.services.embeddings import deserialize_sparse, l2_normalize
 from preferences.services.recommend import apply_boosts, cosine_scores, mmr_rerank
 from users.models import UserBook, UserInfo
 from bookinfo.models import BookInfo
+from notification.models import Notification
+from notification.service import push
+from accounts.models import User
 from rest_framework import status
 import numpy as np
 
@@ -217,3 +222,113 @@ def first_category(long_cat: str, base: str = "국내도서"):
         if long_cat.startswith(prefix):
             return short_cat
     return None
+
+# (isbn, csr) 리스트와 제목 맵 반환
+def _load_book_vectors_for_isbns(isbns):
+    items, title_of = [], {}
+    for bi in (BookInfo.objects.filter(isbn__in=isbns)
+               .only("isbn", "title", "vector").iterator()):
+        csr = deserialize_sparse(getattr(bi, "vector", None))
+        if csr is None or getattr(csr, "nnz", 0) == 0:
+            continue
+        items.append((bi.isbn, csr))
+        title_of[bi.isbn]  = bi.title
+    return items, title_of
+
+# donated_isbns에 대해 취향 매칭되는 유저에게 notification 생성
+# combined mode와 동일한 로직으로
+@transaction.atomic
+def preference_notification(donor_user, donated_isbns, k: int = 3, thresh: float = 0.15,
+                            use_mmr: bool=True):
+    mode = "combined"
+    if not donated_isbns:
+        return None
+    
+    # 기증된 책들
+    isbns = sorted(set(str(x).strip() for x in donated_isbns))
+    items, title_of = _load_book_vectors_for_isbns(isbns)
+    if not items:
+        return None
+    
+    # 여기에 알림 저장
+    notifications = []
+
+    # 기증자 제외한 유저들 가져옴(필요한 필드만)
+    user_qs = (UserInfo.objects.exclude(user_id=donor_user.id)
+               .only("user_id", "preference_vector", "preference_vector_survey")
+               .select_related("user").iterator())
+    
+    # 유저별로 처리
+    for ui in user_qs:
+        # 유저 벡터 가져옴
+        uvec = deserialize_sparse(ui.preference_vector)
+        if uvec is None or getattr(uvec, "nnz", 0) == 0:
+            continue
+        uvec = l2_normalize(uvec)
+
+        # 유저가 이미 기증/수령한 도서는 제외
+        owned = set(UserBook.objects.filter(user_id=ui.user_id, bookinfo_id__in=isbns)
+                    .values_list("bookinfo_id", flat=True))
+        cand_items = [(isbn, csr) for (isbn, csr) in items if isbn not in owned]
+        if not cand_items:
+            continue
+
+        # 사용자 벡터 - 기증된 책 벡터 비교
+        cleaned, M, base_scores = cosine_scores(uvec, cand_items)
+        if M is None or M.shape[0] == 0:
+            continue
+
+        # 모드별 부스트용 벡터
+        sv = deserialize_sparse(getattr(ui, "preference_vector_survey", None))
+
+        recent_vec = None
+
+        # 부스트 가중치 변경 가능
+        survey_w = float(getattr(settings, "RECOMMEND_SURVEY_BOOST", 0.25))
+        recent_w = float(getattr(settings, "RECOMMEND_RECENT_BOOST", 0.30))
+
+        boosted = apply_boosts(
+            mode=mode,
+            M=M,
+            base_scores=base_scores,
+            survey_vec=sv,
+            recent_vec=recent_vec,
+            survey_w=survey_w,
+            recent_w=recent_w,
+        )
+
+        # MMR 리랭킹 (선택된 "순서" 그대로 결과에 반영)
+        pool = int(getattr(settings, "RECOMMEND_MMR_POOL", 50))
+        lam = float(getattr(settings, "RECOMMEND_MMR_LAMBDA", 0.3))
+
+        if use_mmr:
+            try:
+                sel_idx = mmr_rerank(M, boosted, k=k, pool=pool, lam=lam)
+            except Exception:
+                sel_idx = list(np.argsort(-boosted)[:k])
+        else:
+            sel_idx = list(np.argsort(-boosted)[:k])
+
+        # 일정 점수 이상의 코사인 유사도 -> pick해서 알림 생성
+        picks = []
+        for i in sel_idx:
+            score = float(boosted[i])
+            if score >= thresh:
+                picks.append((cleaned[i][0], score))
+        if not picks:
+            continue
+
+        picks.sort(key=lambda x: x[1], reverse=True)
+        chosen_isbns = [isbn for isbn, _ in picks][:k]
+        chosen_titles = [title_of.get(z, "도서") for z in chosen_isbns]
+
+        # 《 》로 감싼 표시용 문자열 생성 (안 길게 30자 정도로 자름)
+        def wrap_title(s: str) -> str:
+            inner = Truncator(s).chars(30)
+            return f"\u300A{inner}\u300B"  # 《 ... 》
+
+        wrapped = [wrap_title(t) for t in chosen_titles]
+        
+        for i in range(len(wrapped)):
+            msg = f"{wrapped[i]} 이 방금 나눔됐어요!\n놓치기 전에 데려가보세요."
+            push(user=ui.user, type_="book_recommendation", message=msg)
