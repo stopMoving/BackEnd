@@ -17,13 +17,12 @@ class Library(models.Model):
     sns = models.CharField(max_length=255, null=True, blank=True)
     lat = models.FloatField(null=True, blank=True)
     long = models.FloatField(null=True, blank=True)
-    cover_url = models.URLField(null=True, max_length=500)    
+    library_image_url = models.URLField(null=True, max_length=500)    
 
 class LibraryImage(BaseModel):
     library = models.ForeignKey(Library, on_delete=models.CASCADE, related_name="images")
     id = models.AutoField(primary_key=True)
     image_url = models.URLField(max_length=500)  # S3에 업로드된 이미지의 URL 저장
-    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Image {self.id}"
