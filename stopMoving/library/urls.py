@@ -1,6 +1,6 @@
 # libraryapp/urls.py
 from django.urls import path
-from .views import LibraryDetailAPIView, LibraryBooksAPIView, LibraryListAPIView, LibraryImageUploadView, LibraryRecommendationView
+from .views import LibraryDetailAPIView, LibraryBooksAPIView, LibraryListAPIView, LibraryImageUploadView, LibraryRecommendationView, LibraryDetailView
 
 
 urlpatterns = [
