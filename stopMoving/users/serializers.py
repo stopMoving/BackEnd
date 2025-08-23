@@ -24,6 +24,7 @@ class UserBookSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='bookinfo.title', read_only=True)
     cover = serializers.URLField(source='bookinfo.cover_url', read_only=True)
     quantity = serializers.IntegerField()
+    sale_price = serializers.IntegerField(source='bookinfo.sale_price', read_only=True)
     # 도서관 정보
     library_id = serializers.IntegerField()
     library_name = serializers.CharField(read_only=True)
@@ -32,7 +33,7 @@ class UserBookSerializer(serializers.ModelSerializer):
         model = UserBook
         fields = (
             'bookinfo', 'title', 'cover', 'quantity',
-            'status', 'created_at', 'library_id', 'library_name'
+            'status', 'created_at', 'library_id', 'library_name', 'sale_price'
         )
 
 class MyLibraryModifySerializer(serializers.Serializer):
