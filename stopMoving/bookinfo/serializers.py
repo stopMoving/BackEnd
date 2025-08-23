@@ -21,7 +21,7 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
         required=False, allow_null=True,
         input_formats=["%Y-%m-%d", "%Y%m%d", "%Y.%m.%d"],
     )
-    sale_price = serializers.SerializerMethodField()
+    sale_price = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = BookInfo
@@ -45,12 +45,18 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("ISBN은 10자리 또는 13자리여야 합니다.")
         return v
     
-    def get_sale_price(self, obj):
-        # 정가 없으면 판매가는 고정 2000원
-        if obj.regular_price is None:
+    def _calc_sale_price(self, regular_price):
+        from decimal import Decimal, ROUND_FLOOR
+        DISCOUNT_RATE = Decimal("0.85")
+        if regular_price is None:
             return 2000
-        # 정가 있으면 85% 내림
-        return int((Decimal(obj.regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
+        return int((Decimal(regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
+
+# ADDED: 생성 시 DB에 sale_price 반영
+    def create(self, validated_data):
+        rp = validated_data.get("regular_price")
+        validated_data["sale_price"] = self._calc_sale_price(rp)   # ADDED
+        return super().create(validated_data)
 
 # (나눔 화면 전용) 필요한 필드만
 class DonationDisplaySerializer(BookInfoPublicBaseSerializer):
