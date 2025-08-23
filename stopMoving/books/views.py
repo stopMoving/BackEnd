@@ -17,13 +17,14 @@ from math import radians, sin, cos, acos
 from decimal import Decimal
 from django.db import transaction
 from users.models import UserInfo, Status
+from accounts.models import User
 from notification.service import push
 from notification.models import Notification as N
 from django.conf import settings
 from django.db import transaction
 from preferences.services.embeddings import deserialize_sparse, serialize_sparse, weighted_sum, l2_normalize
 from users.models import UserBook
-from .services import preference_books_activity, preference_books_combined
+from .services import preference_books_activity, preference_books_combined, preference_notification
 
 EARTH_KM = 6371.0
 POINT_PER_BOOK = 500
@@ -174,6 +175,9 @@ class DonationAPIView(APIView):
                  type_="book_donated",
                  message=msg,
             )
+
+        # 취향 일치하는 유저에게 알림 보내기
+        preference_notification(donor_user=request.user, donated_isbns=success_isbn)
 
         return Response({
             "message": "일괄 기증 처리 완료",

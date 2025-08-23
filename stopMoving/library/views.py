@@ -11,12 +11,15 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import Library, LibraryImage
 from books.models import Book
-from bookinfo.models import BookInfoLibrary
+from bookinfo.models import BookInfoLibrary, BookInfo
 from .exceptions import LibraryNotFound, BookNotFound
 from django.core.files.storage import default_storage  
 from .serializer import ImageSerializer
 from django.conf import settings
 import boto3
+from bookinfo.serializers import BookSummarySerializer
+from .services import preference_books_per_lib
+from rest_framework.permissions import IsAuthenticated
 
 class LibraryDetailAPIView(APIView):
     @swagger_auto_schema(
@@ -115,3 +118,38 @@ class LibraryImageUploadView(APIView):
 
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class LibraryRecommendationView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, library_id: int):
+        # 1) Library 존재 확인
+        library = Library.objects.filter(pk=library_id).first()
+        if not library:
+            raise LibraryNotFound
+        
+        # 2) 책 없음 → 404 커스텀
+        if not BookInfoLibrary.objects.filter(library_id=library.id, status="AVAILABLE").exists():
+            raise BookNotFound
+        
+        # 3) 추천 책 isbn 목록으로
+        isbn_list = preference_books_per_lib(user=request.user, lib_id=library_id)
+        
+        books_by_isbn = BookInfo.objects.filter(isbn__in=isbn_list)\
+                                        .only("isbn", "title", "author", "cover_url", "category")\
+                                        .in_bulk(field_name="isbn")
+        
+        results = []
+        for isbn in isbn_list:
+            bi = books_by_isbn.get(isbn)
+            if not bi:
+                continue
+            results.append({
+                "isbn": bi.isbn,
+                "title": bi.title,
+                "author": bi.author,
+                "cover_url": bi.cover_url,
+                "category": bi.category
+            })
+        
+        response_data = {"library": library_id, "results": results}
+        return Response(response_data, status=status.HTTP_200_OK)
