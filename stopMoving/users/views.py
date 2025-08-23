@@ -21,7 +21,7 @@ from accounts.models import User
 from bookinfo.models import BookInfo
 from .exceptions import UserInfoNotFound, UserProfileSerializerError, NoDonatedBooks, NoPurchasedBooks
 from django.core.files.storage import default_storage  
-from .serializers import ImageSerializer
+from .serializers import ImageSerializer, UserDetailSerializer
 from django.conf import settings
 import boto3
 
@@ -100,6 +100,7 @@ class MyPurchasedBooksView(APIView):
                 raise NoPurchasedBooks()
             return empty_list("구매한 책이 없습니다.")
         
+        
         return Response(UserBookSerializer(qs, many=True).data, status=status.HTTP_200_OK)
 
 # '내 도서관' 등록/해제 
@@ -170,7 +171,14 @@ class MyLibraryListAPIView(APIView):
     
 
 class UserImageUploadView(APIView):
-    def post(self, request):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
+
+        if request.user.id != user.id and not request.user.is_staff:
+            return Response({"error": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+        
         if 'image' not in request.FILES:
             return Response({"error": "No image file"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -200,8 +208,20 @@ class UserImageUploadView(APIView):
         image_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{file_path}"
 
         # DB에 저장
-        image_instance = UserImage.objects.create(image_url=image_url)
+        image_instance = UserImage.objects.create(
+            user_id=user_id,
+            image_url=image_url)
         serializer = ImageSerializer(image_instance)
 
+        userinfo = UserInfo.objects.filter(user_id=user_id).first()
+        userinfo.user_image_url = image_url 
+        userinfo.save(update_fields=["user_image_url"])
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+class UserImageView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request, user_id):
+        userinfo = get_object_or_404(UserInfo, user__id=user_id)
+
+        return Response(UserDetailSerializer(userinfo).data)

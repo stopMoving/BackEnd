@@ -19,6 +19,7 @@ class UserInfo(models.Model):
     preference_book_activity = models.JSONField(default=list, blank=True) # 선호 책 추천 목록 - 수령 기반 (1~5등)
 
     updated_at = models.DateTimeField(auto_now=True)
+    user_image_url = models.URLField(null=True, max_length=500)
 
 
 class Status(models.TextChoices):
@@ -67,6 +68,7 @@ class BaseModel(models.Model):
         abstract = True
 
 class UserImage(BaseModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="images", null=True, blank=True)
     id = models.AutoField(primary_key=True)
     image_url = models.URLField(max_length=500)  # S3에 업로드된 이미지의 URL 저장
 
