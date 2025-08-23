@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 
-from .serializer import LibraryHoldingItemSerializer, LibraryInfoSerializer, LibraryNameSerializer
+from .serializer import LibraryHoldingItemSerializer, LibraryInfoSerializer, LibraryNameSerializer, LibraryDetailSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import Library, LibraryImage
@@ -83,7 +83,9 @@ class LibraryListAPIView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 class LibraryImageUploadView(APIView):
-    def post(self, request):
+    def post(self, request, library_id):
+        lib = get_object_or_404(Library, pk=library_id)
+
         if 'image' not in request.FILES:
             return Response({"error": "No image file"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -113,8 +115,22 @@ class LibraryImageUploadView(APIView):
         image_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{file_path}"
 
         # DB에 저장
-        image_instance = LibraryImage.objects.create(image_url=image_url)
+        image_instance = LibraryImage.objects.create(
+            library=lib,
+            image_url=image_url)
+        
         serializer = ImageSerializer(image_instance)
+        lib.library_image_url = image_url
+        lib.save(update_fields=["library_image_url"])
+
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+class LibraryDetailView(APIView):
+    permission_classes = [permissions.AllowAny]  # 공개면
+    def get(self, request, library_id):
+        lib = get_object_or_404(Library, pk=library_id)
+        return Response(LibraryDetailSerializer(lib).data)
 
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -153,3 +169,4 @@ class LibraryRecommendationView(APIView):
         
         response_data = {"library": library_id, "results": results}
         return Response(response_data, status=status.HTTP_200_OK)
+
