@@ -1,6 +1,5 @@
 from django.db import models
 from accounts.models import User
-from books.models import Book
 from django.conf import settings
 from bookinfo.models import BookInfo
 
