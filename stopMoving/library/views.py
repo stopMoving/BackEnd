@@ -1,4 +1,4 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 
 # Create your views here.
 # 도서관 정보 조회 api
@@ -8,16 +8,12 @@ from rest_framework import status, permissions
 
 from .serializer import LibraryHoldingItemSerializer, LibraryInfoSerializer, LibraryNameSerializer, LibraryDetailSerializer
 from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 from .models import Library, LibraryImage
-from books.models import Book
 from bookinfo.models import BookInfoLibrary, BookInfo
 from .exceptions import LibraryNotFound, BookNotFound
-from django.core.files.storage import default_storage  
 from .serializer import ImageSerializer
 from django.conf import settings
 import boto3
-from bookinfo.serializers import BookSummarySerializer
 from .services import preference_books_per_lib
 from rest_framework.permissions import IsAuthenticated
 
@@ -131,9 +127,6 @@ class LibraryDetailView(APIView):
     def get(self, request, library_id):
         lib = get_object_or_404(Library, pk=library_id)
         return Response(LibraryDetailSerializer(lib).data)
-
-
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class LibraryRecommendationView(APIView):
     permission_classes = [IsAuthenticated]
