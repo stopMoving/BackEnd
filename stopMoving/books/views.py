@@ -77,14 +77,14 @@ def _decrease_stock_one(library_id, isbn: str, qty: int):
             .first()
         )
         if not bil:
-            return False, {"error": "해당 도서관에 재고 항목이 없습니다.", "isbn": bookinfo.isbn}
-
+            return Response({"error":"해당 도서관에 재고 항목이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
         
         if bil.status != "AVAILABLE":
-            return False, {"error": "구매 불가 상품입니다.", "status": bil.status}
+            return Response({"error":"구매 불가 상품입니다."}, status=status.HTTP_400_BAD_REQUEST)
         
         if bil.quantity < qty:
-            return False, {"error": "요청 권 수가 재고보다 많습니다.","isbn": bookinfo.isbn, "stock": bil.quantity, "requested": qty}
+            return Response({"error":"요청 권 수가 재고보다 많습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            
         
         
         BookInfoLibrary.objects.filter(pk=bil.pk).update(quantity=F("quantity") - qty)
