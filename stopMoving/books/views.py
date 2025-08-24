@@ -64,7 +64,7 @@ def _increase_stock_one(library_id, isbn: str, qty: int):
         "status": bil.status,
     }
 
-def _decrease_stock_one(library_id, isbn: str, qty: int):
+def _decrease_stock_one(library_id, isbn: str, qty: int) -> tuple[bool, dict, int]:
     """
     해당 도서관에서 특정 ISBN 재고(quantity) 감소.
     qty는 1 이상 정수.
@@ -109,13 +109,13 @@ def _decrease_stock_one(library_id, isbn: str, qty: int):
             bil.status = "PICKED" 
             bil.save(update_fields=["status"])
 
-    return True, {
+    return (True,{
         "library_id": getattr(library_id, "id", None),  
         "isbn": bookinfo.isbn,                           
         "removed_quantity": qty,                         
         "total_quantity": bil.quantity,
         "status": bil.status,
-    }
+    }, status.HTTP_200_OK)
 
 # 책 나눔하기 마지막에 나눔하기 버튼
 class DonationAPIView(APIView):
