@@ -1,5 +1,4 @@
 # preferences/views.py
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -7,8 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from .serializers import ISBNListSerializer
 from bookinfo.models import BookInfo
-from users.models import UserInfo, UserBook, Status
-from accounts.models import User
+from users.models import UserInfo
 
 # 새 엔진(사전 없이: KeyBERT × 전역IDF × 교집합가중)
 from .services.keyword_extractor import extract_keywords_from_books
@@ -16,11 +14,8 @@ from .services.keyword_extractor import extract_keywords_from_books
 from preferences.services.embeddings import(
     load_vectorizer, serialize_sparse, deserialize_sparse, weighted_sum, l2_normalize
 )
-from preferences.services.recommend import cosine_topk, cosine_scores, apply_boosts, mmr_rerank
 from django.conf import settings
 from django.utils import timezone
-import numpy as np
-from scipy import sparse # csr 타입 위해 import
 from books.services import CATEGORIES, preference_books_combined
 
 SURVEY_MIN_BOOKS = 3
@@ -102,16 +97,6 @@ class ExtractKeywordsView(APIView):
         preference_books_combined(request.user)
 
         return Response({"keywords": keywords, "saved": True}, status=status.HTTP_200_OK)
-
-
-def _csr_digest(csr: sparse.csr_matrix | None):
-    if csr is None or getattr(csr, "nnz", 0) == 0:
-        return {"nnz": 0, "sum": 0.0, "l2": 0.0}
-    return {
-        "nnz": int(csr.nnz),
-        "sum": float(csr.sum()),
-        "l2": float(np.sqrt((csr.data ** 2).sum())),
-    }
 
 class RecommendView(APIView):
     permission_classes = [IsAuthenticated]
