@@ -1,7 +1,5 @@
 from django.db import models
-from users.models import User, UserInfo
-from books.models import Book
-from django.utils import timezone
+from users.models import User
 class Notification(models.Model):
     NOTIFICATION_TYPES = [
         ('book_recommendation', '추천'),
