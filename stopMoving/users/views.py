@@ -37,6 +37,7 @@ class UserProfileView(APIView):
         
         # 사용자 프로필 정보 직렬화
         profile_data = {
+            "id": user.id,
             "nickname": user.nickname,
             "points": user_info.points,
             "keywords": user_info.preference_keyword or [],

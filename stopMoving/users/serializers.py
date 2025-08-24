@@ -3,6 +3,7 @@ from .models import UserInfo, UserBook, UserImage
 
 # 마이페이지에 표시할 사용자 정보
 class UserProfileSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
     nickname = serializers.CharField()
     points = serializers.IntegerField()
     keywords = serializers.ListField(
