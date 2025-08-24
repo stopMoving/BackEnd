@@ -9,7 +9,8 @@ class UserProfileSerializer(serializers.Serializer):
         child=serializers.CharField(),
         allow_empty=True
     )
-
+    user_image_url = serializers.URLField()
+    
 # 사용자별 나눔하기/데려가기 한 책 목록
 class UserBookSerializer(serializers.ModelSerializer):
     # 상태: 기증/구매
