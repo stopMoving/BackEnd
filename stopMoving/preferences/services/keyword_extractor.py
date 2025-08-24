@@ -249,6 +249,7 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
             agg[w].append(s)
 
     scored = []
+    scored_cand = []
     title_or_cate = title_tokens_all | category_tokens_all
 
     for w, arr in agg.items():
@@ -262,7 +263,9 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
 
         # ③ IDF 필터: 너무 흔한/희귀 단어 컷
         idf_w = idf.get(w, 1.0)
+        idf_cand_w = 0
         if idf_w < IDF_MIN or idf_w > IDF_MAX:
+            idf_cand_w = idf.get(w, 1.0)
             continue
 
         # ④ 최종 점수: 평균 KeyBERT × (1+α·IDF) × (1+β·교집합보너스)
@@ -272,17 +275,34 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
         cat_bonus = 0.15 if w in title_or_cate else 0.0
 
         final = avg_s * (1.0 + α * idf_w) * (1.0 + β * max(0, df_boost)) + cat_bonus
+        final_cand = avg_s * (1.0 + α * idf_cand_w) * (1.0 + β * max(0, df_boost)) + cat_bonus
+        
         scored.append((w, final))
+        scored_cand.append((w, final_cand))
 
     scored.sort(key=lambda x: x[1], reverse=True)
     out, seen = [], set()
+    count = 0
     for w, _ in scored:
         lw = w.lower()
         if lw in seen:
             continue
         seen.add(lw)
         out.append(w)
+        count += 1
         if len(out) >= top_n:
             break
+    
+    if len(out) < top_n:
+        scored_cand.sort(key=lambda x: x[1], reverse=True)
+        for w, _ in scored:
+            lw = w.lower()
+            if lw in seen:
+                continue
+            seen.add(lw)
+            out.append(w)
+            count += 1
+            if len(out) >= top_n:
+                break
 
     return out
