@@ -61,7 +61,9 @@ API_KEY = get_secret("ALADIN_API_KEY")
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
+
+SHOW_SWAGGER = DEBUG
 
 # 운영 시에는 보안상의 이유로 IP를 직접 기재하는 것이 좋습니다.
 ALLOWED_HOSTS = ['*']
