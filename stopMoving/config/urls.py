@@ -34,12 +34,10 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('posts/', include('posts.urls')),  # posts 앱의 URL 포함
     path('bookinfo/', include('bookinfo.urls')), # bookinfo 앱의 URL 포함
     path('accounts/', include('accounts.urls')), # accounts 앱의 URL 포함
     path('books/', include('books.urls')), # books 앱의 URL 포함
     path('library/', include('library.urls')), # library 앱의 URL 포함
-    path('reservations/', include('reservations.urls')), # reservations 앱의 URL 포함
     path('preferences/', include('preferences.urls')), # preferences 앱의 URL 포함
     path('notification/', include('notification.urls')), # notification 앱의 URL 포함 
     path('users/', include('users.urls')),  # users 앱의 URL 포함
