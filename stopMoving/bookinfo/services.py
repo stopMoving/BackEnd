@@ -8,7 +8,7 @@ from preferences.services.embeddings import (
             build_text_from_bookinfo, serialize_sparse,
             build_text_from_meta
         )
-from django.db import IntegrityError, transaction
+from django.db import transaction
 
 ALADIN_URL = "http://www.aladin.co.kr/ttb/api/ItemLookUp.aspx"
 ALADIN_TIMEOUT = 5
