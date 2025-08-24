@@ -1,8 +1,5 @@
 from rest_framework import serializers
-from .models import UserInfo, UserBook, UserImage, User
-from library.models import Library
-from books.models import Book
-from bookinfo.models import BookInfo
+from .models import UserInfo, UserBook, UserImage
 
 # 마이페이지에 표시할 사용자 정보
 class UserProfileSerializer(serializers.Serializer):

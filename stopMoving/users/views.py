@@ -1,4 +1,4 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import OuterRef, Subquery
 from rest_framework.views import APIView
@@ -7,18 +7,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status, permissions
 
 from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 
 from config.responses import empty_list
 from .serializers import UserProfileSerializer, UserBookSerializer, MyLibraryModifySerializer
 from library.serializer import LibraryNameSerializer
-from typing import List
 
 from .models import UserInfo, Status, UserBook, UserImage
 from library.models import Library
-from books.models import Book
 from accounts.models import User
-from bookinfo.models import BookInfo
 from .exceptions import UserInfoNotFound, UserProfileSerializerError, NoDonatedBooks, NoPurchasedBooks
 from django.core.files.storage import default_storage  
 from .serializers import ImageSerializer, UserDetailSerializer

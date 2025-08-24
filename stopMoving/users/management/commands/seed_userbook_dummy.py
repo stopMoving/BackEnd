@@ -1,10 +1,9 @@
 # users/management/commands/link_userbook_from_existing.py
-from typing import List, Tuple
+from typing import List
 from itertools import cycle
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.contrib.auth import get_user_model
 
 from users.models import UserBook, Status
 from books.models import Book

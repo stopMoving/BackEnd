@@ -3,9 +3,9 @@
 from __future__ import annotations
 import re
 from typing import List
-import json, os, re, math
+import json, os, re
 from typing import List, Dict, Tuple
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 # ====== 모델 로딩 (한 번만) ======
 from sentence_transformers import SentenceTransformer

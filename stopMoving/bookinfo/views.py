@@ -8,19 +8,16 @@ from rest_framework import status, permissions
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Q, Func, F, Value,Window
-from .services import ensure_bookinfo, get_sale_price
+from django.db.models import Q, Func, F, Value,Window
 from users.models import UserInfo
 from .models import BookInfo
 import random
 from django.db.models.expressions import RawSQL
 from django.db.models.functions import RowNumber
 from bookinfo.serializers import (
-    DonationDisplaySerializer,
     PickupDisplaySerializer,
     BookInfoUpsertSerializer,
     BookSummarySerializer,
-    # BookInfoSerializer
 )
 
 # 책 기증할 때 책 정보 불러오는 API
@@ -167,43 +164,6 @@ class BookSearchAPIView(APIView):
         } for b in qs[start:end]]
 
         return Response({"count": qs.count(), "results": results}, status=200)
-    
-# 책 나눔하기 누르기전에 최종 책 확인 API
-# class BookInfoBulkAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
-    
-#     def get(self, request):
-#         s = BookInfoSerializer(data=request.data)
-#         s.is_valid(raise_exception=True)
-#         v = s.validated_data
-
-#         results = []
-#         cache = {}
-
-#         for isbn in v["isbn"]:
-#             try:
-#                 info = cache.get(isbn) or ensure_bookinfo(isbn)
-#                 if not info:
-#                     results.append({
-#                         "isbn": isbn,
-#                         "status": "ERROR",
-#                         "code": "BOOKINFO_REQUIRED",
-#                         "message": "책 정보가 없습니다."
-#                     })
-#                     continue
-#                 cache[isbn] = info
-
-#                 results.append({
-#                     "isbn": info.isbn,
-#                     "status": "CREATED",
-#                     "book_info": DonationDisplaySerializer(info).data
-#                 })
-#             except Exception as e:
-#                 results.append({"isbn": isbn, "status": "ERROR", "message": str(e)})
-
-#         return Response(results, status=status.HTTP_201_CREATED)
-
-
         
 # 설문조사 시 책 목록 보여주기용
 class BookListView(APIView):
@@ -234,5 +194,3 @@ class BookListView(APIView):
 
         result = [{"category": row["second_cat"], "cover_url": row["cover_url"], "isbn": row["isbn"]} for row in qs]
         return Response(result, status=status.HTTP_200_OK)
-    
-

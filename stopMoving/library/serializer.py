@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import Library
-from bookinfo.models import BookInfo, BookInfoLibrary
-from books.models import Book
+from bookinfo.models import BookInfoLibrary
 from .models import LibraryImage
 
 

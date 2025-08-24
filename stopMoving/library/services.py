@@ -1,17 +1,10 @@
 from django.conf import settings
-from django.db.models import F
-from django.db import transaction
-from django.utils.text import Truncator
 from rest_framework.response import Response
 from preferences.services.embeddings import deserialize_sparse, l2_normalize
 from preferences.services.recommend import apply_boosts, cosine_scores, mmr_rerank
 from users.models import UserBook, UserInfo
 from bookinfo.models import BookInfo, BookInfoLibrary
-from notification.models import Notification
-from notification.service import push
-from accounts.models import User
 from rest_framework import status
-import numpy as np
 
 CATEGORIES = ["소설/시/희곡", "만화", "어린이", "인문학", "에세이", "수험서/자격증", "경제경영", "과학"]
 
