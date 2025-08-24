@@ -21,7 +21,7 @@ from django.conf import settings
 from django.utils import timezone
 import numpy as np
 from scipy import sparse # csr 타입 위해 import
-from books.services import CATEGORIES
+from books.services import CATEGORIES, preference_books_combined
 
 SURVEY_MIN_BOOKS = 3
 CATEGORIES_SET = set(CATEGORIES)
@@ -97,6 +97,9 @@ class ExtractKeywordsView(APIView):
             "preference_vector_survey",
             "preference_vector",
         ])
+
+        # 사용자 db에 combined 기반 추천 책 isbn 목록 저장
+        preference_books_combined(request.user)
 
         return Response({"keywords": keywords, "saved": True}, status=status.HTTP_200_OK)
 
