@@ -23,8 +23,8 @@ def ensure_bookinfo(isbn: str):
     실패하면 None.
     """
     isbn = re.sub(r"[-\s]", "", isbn or "")
-    if not re.fullmatch(r"\d{10}|\d{13}", isbn): # 10자리 혹은 13자리만 허용
-        return None
+    # if not re.fullmatch(r"\d{10}|\d{13}", isbn): # 10자리 혹은 13자리만 허용
+    #     return None
 
     # DB에 존재하면 return
     info = BookInfo.objects.filter(isbn=isbn).first()

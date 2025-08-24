@@ -9,9 +9,9 @@ class StockItemSerializer(serializers.Serializer):
     def validate_isbn(self, v):
         # 숫자로 들어오면 문자열로 변환
         v = str(v).replace("-", "").strip()
-        if not re.fullmatch(r"\d{10}|\d{13}", v):
-            raise serializers.ValidationError("ISBN은 10자리 또는 13자리여야 합니다.")
-        return v
+        # if not re.fullmatch(r"\d{10}|\d{13}", v):
+        #     raise serializers.ValidationError("ISBN은 10자리 또는 13자리여야 합니다.")
+        # return v
 
 class StockBatchRequestSerializer(serializers.Serializer):
     library_id = serializers.IntegerField()

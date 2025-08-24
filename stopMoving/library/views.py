@@ -45,8 +45,8 @@ class LibraryBooksDetailView(APIView):
             return Response({"error": "ISBN이 필요합니다."}, status=400)
         # 형식 통일
         isbn = raw.replace("-", "").strip()
-        if not re.fullmatch(r"\d{10}|\d{13}", isbn):
-            return Response({"error": "ISBN 형식이 올바르지 않습니다(10 또는 13자리)."}, status=400)
+        # if not re.fullmatch(r"\d{10}|\d{13}", isbn):
+        #     return Response({"error": "ISBN 형식이 올바르지 않습니다(10 또는 13자리)."}, status=400)
 
         books = BookInfoLibrary.objects.filter(library_id=library_id, isbn=isbn, status="AVAILABLE").aggregate(Count('isbn'))
         bookinfo = BookInfo.objects.filter(isbn=isbn).first()
