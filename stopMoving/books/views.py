@@ -70,13 +70,12 @@ def _decrease_stock_one(library_id, isbn: str, qty: int):
     qty는 1 이상 정수.
     """
 
-    bookinfo = BookInfo.objects.filter(isbn=str(isbn)).first()
+    bookinfo = BookInfo.objects.filter(isbn=isbn).first()
     if not bookinfo:
         return (False,
                 {"isbn": isbn, "error": "책 정보가 없습니다. 먼저 BookInfo를 생성하세요."},
                 status.HTTP_404_NOT_FOUND,
         )
-
     with transaction.atomic():
         bil = (
             BookInfoLibrary.objects
