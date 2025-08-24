@@ -50,7 +50,7 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
         DISCOUNT_RATE = Decimal("0.85")
         if regular_price is None:
             return 2000
-        return int((Decimal(regular_price) * DISCOUNT_RATE).to_integral_value(rounding=ROUND_FLOOR))
+        return int((Decimal(regular_price) * (1 - DISCOUNT_RATE)).to_integral_value(rounding=ROUND_FLOOR))
 
 # ADDED: 생성 시 DB에 sale_price 반영
     def create(self, validated_data):
