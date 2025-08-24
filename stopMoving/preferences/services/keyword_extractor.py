@@ -39,7 +39,7 @@ KOREAN_STOPWORDS = {
     "와", "과", "으로", "으로서", "으로써", "에게", "께", "한테",
     "보다", "처럼", "부터", "까지", "도", "만", "조차", "마저",
     "의", "및", "또는", "그리고", "하지만", "그러나", "또", "혹은",
-    "등", "등등", "요", "게", "데", "고", "라", "다", "것", "수", "들", "하다", "되다"
+    "등", "등등", "요", "게", "데", "고", "라", "다", "것", "수", "들", "하다", "되다", "국내도서", "소설"
 }
 # 지명/기관/주소 흔한 접미(휴리스틱)
 _PLACE_SUFFIXES = ("시","군","구","동","읍","면","리","로","길","대로","번길","국","청","원","대")
@@ -172,7 +172,8 @@ def _semantic_dedupe(words: List[str], sim_threshold: float = 0.80) -> List[str]
     """SBERT 임베딩으로 유사 후보 제거(그리디)."""
     if len(words) <= 1:
         return words
-    model = MODEL_NAME
+    # model = MODEL_NAME
+    model = _get_kw().model
     vecs = model.encode(words, normalize_embeddings=True)
     keep: List[int] = []
     for i, v in enumerate(vecs):
@@ -195,8 +196,8 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
     # 1) 각 책별 전처리 & 단어 리스트
     book_tokens: List[List[str]] = []
     processed_texts: List[str] = []
-    title_tokens_all = set()
-    category_tokens_all = set()
+    title_tokens_all: set[str] = set()
+    category_tokens_all: set[str] = set()
 
     for d in records:
         # author 제외
@@ -248,42 +249,47 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
         for w, s in d.items():
             agg[w].append(s)
 
-    scored = []
-    scored_cand = []
+    strong_scored: list[tuple[str, float]] = []
+    weak_scored: list[tuple[str, float]] = []
     title_or_cate = title_tokens_all | category_tokens_all
 
+    def _ok_token_basic(w: str) -> bool:
+        return bool(re.fullmatch(r"[0-9A-Za-z\uac00-\ud7a3]{2,}", w))
+    
     for w, arr in agg.items():
-        # ① 형태적 필터: 한글/영문/숫자만, 2자 이상
-        if not re.fullmatch(r"[0-9A-Za-z\uac00-\ud7a3]{2,}", w):
+        # 형태 필터: 한글/영문/숫자만, 2자 이상
+        if not _ok_token_basic(w):
             continue
 
-        # ② 빈도 필터: 제목/카테고리에 없으면 문서 내 최소 2회 이상 등장해야 허용
-        if (w not in title_or_cate) and (tf_all[w] < 2):
-            continue
 
-        # ③ IDF 필터: 너무 흔한/희귀 단어 컷
+        # 빈도 필터: 제목/카테고리에 없으면 문서 내 최소 2회 이상 등장해야 허용
+        tf_ok =  (w in title_or_cate) or (tf_all[w] >= 2)
+
+        # IDF 필터: 너무 흔한/희귀 단어 컷
         idf_w = idf.get(w, 1.0)
-        idf_cand_w = 0
-        if idf_w < IDF_MIN or idf_w > IDF_MAX:
-            idf_cand_w = idf.get(w, 1.0)
-            continue
+        idf_ok = (IDF_MIN <= idf_w <= IDF_MAX)
 
         # ④ 최종 점수: 평균 KeyBERT × (1+α·IDF) × (1+β·교집합보너스)
-        avg_s = sum(arr) / len(arr)
+        avg_s = sum(arr) / max(1, len(arr))
         df_boost = (doc_freq[w] - 1)  # 3권 중 2권=1, 3권=2
         # ⑤ 카테고리/제목에 있으면 소폭 보너스
         cat_bonus = 0.15 if w in title_or_cate else 0.0
 
-        final = avg_s * (1.0 + α * idf_w) * (1.0 + β * max(0, df_boost)) + cat_bonus
-        final_cand = avg_s * (1.0 + α * idf_cand_w) * (1.0 + β * max(0, df_boost)) + cat_bonus
+        final_strong = avg_s * (1.0 + α * idf_w) * (1.0 + β * max(0, df_boost)) + cat_bonus
+        final_weak = avg_s * (1.0 + α * 1.0) * (1.0 + β * max(0, df_boost)) + cat_bonus
         
-        scored.append((w, final))
-        scored_cand.append((w, final_cand))
+        if tf_ok and idf_ok: # 모든 검사 통과하면
+            strong_scored.append((w, final_strong))
+        else: # 검사 다 통과하지 못하면 -> weak 키워드로 나머지 채움
+            weak_scored.append((w, final_weak))
 
-    scored.sort(key=lambda x: x[1], reverse=True)
+    strong_scored.sort(key=lambda x: x[1], reverse=True)
+    weak_scored.sort(key=lambda x: x[1], reverse=True)
     out, seen = [], set()
     count = 0
-    for w, _ in scored:
+    
+    # strong scored 키워드 먼저 저장
+    for w, _ in strong_scored:
         lw = w.lower()
         if lw in seen:
             continue
@@ -293,9 +299,26 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
         if len(out) >= top_n:
             break
     
+    # strong으로 top_n 다 못 채우면 카테고리 토큰으로 보강
+    if len(out) < top_n and category_tokens_all:
+        # 카테고리 내에서 자주 나온 순으로
+        cat_sorted = sorted(
+            [w for w in category_tokens_all if _ok_token_basic(w)],
+            key=lambda w: (tf_all[w], w), reverse=True
+        )
+        for w in cat_sorted:
+            lw = w.lower()
+            if lw in seen:
+                continue
+            seen.add(lw)
+            out.append(w)
+            if len(out) >= top_n:
+                break
+
+    
+    # strong, 카테고리로 다 못 채우면 weak으로 보강
     if len(out) < top_n:
-        scored_cand.sort(key=lambda x: x[1], reverse=True)
-        for w, _ in scored:
+        for w, _ in weak_scored:
             lw = w.lower()
             if lw in seen:
                 continue
@@ -305,4 +328,4 @@ def extract_keywords_from_books(records: List[Dict], top_n: int = 4) -> List[str
             if len(out) >= top_n:
                 break
 
-    return out
+    return out[:top_n]
