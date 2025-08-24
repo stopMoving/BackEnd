@@ -41,8 +41,8 @@ class BookInfoUpsertSerializer(serializers.ModelSerializer):
 
     def validate_isbn(self, v):
         v = v.replace("-", "").strip()
-        if not re.fullmatch(r"\d{10}|\d{13}", v):
-            raise serializers.ValidationError("ISBN은 10자리 또는 13자리여야 합니다.")
+        # if not re.fullmatch(r"\d{10}|\d{13}", v):
+        #     raise serializers.ValidationError("ISBN은 10자리 또는 13자리여야 합니다.")
         return v
     
     def _calc_sale_price(self, regular_price):
