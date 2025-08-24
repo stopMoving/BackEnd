@@ -40,11 +40,11 @@ class UserProfileView(APIView):
             "nickname": user.nickname,
             "points": user_info.points,
             "keywords": user_info.preference_keyword or [],
-            "user_image": user_info.user_image_url
+            "user_image_url": user_info.user_image_url
         }
 
         try:
-            serializer = UserProfileSerializer(instance=profile_data)
+            serializer = UserProfileSerializer(profile_data)
         except Exception:
             raise UserProfileSerializerError()
         
