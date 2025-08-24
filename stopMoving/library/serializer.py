@@ -4,6 +4,7 @@ from bookinfo.models import BookInfo, BookInfoLibrary
 from books.models import Book
 from .models import LibraryImage
 
+
 class LibraryInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Library
@@ -46,3 +47,5 @@ class LibraryDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Library
         fields = ("id", "name", "library_image_url")
+
+
