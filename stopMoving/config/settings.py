@@ -81,14 +81,12 @@ DJANGO_APPS = [
 ]
 
 PROJECT_APPS = [
-    'posts', # test API 위해 생성
     'bookinfo', # 책 검색
     'accounts', # 회원가입 및 로그인
     'library', # 도서관 정보
     'users', # 유저 정보
     'books', # 책 객체
     'books.management.commands', # 커맨드 추가
-    'reservations',
     'preferences', # 선호도 기반 추천
     'notification', # 알림기능
 ]
