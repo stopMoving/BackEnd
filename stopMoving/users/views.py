@@ -39,7 +39,8 @@ class UserProfileView(APIView):
         profile_data = {
             "nickname": user.nickname,
             "points": user_info.points,
-            "keywords": user_info.preference_keyword or []
+            "keywords": user_info.preference_keyword or [],
+            "user_image": user_info.user_image_url
         }
 
         try:

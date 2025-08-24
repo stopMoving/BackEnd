@@ -5,17 +5,18 @@ from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
-
 from .serializer import LibraryHoldingItemSerializer, LibraryInfoSerializer, LibraryNameSerializer, LibraryDetailSerializer
 from drf_yasg.utils import swagger_auto_schema
 from .models import Library, LibraryImage
 from bookinfo.models import BookInfoLibrary, BookInfo
-from .exceptions import LibraryNotFound, BookNotFound
+from .exceptions import LibraryNotFound, BookNotFound  
 from .serializer import ImageSerializer
 from django.conf import settings
-import boto3
+import boto3, re
 from .services import preference_books_per_lib
 from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count
+from bookinfo.serializers import BookDetailDisplaySerializer
 
 class LibraryDetailAPIView(APIView):
     @swagger_auto_schema(
@@ -26,7 +27,38 @@ class LibraryDetailAPIView(APIView):
         lib = get_object_or_404(Library, pk=library_id)
         serializer = LibraryInfoSerializer(lib)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+
+# 도서관에 존재하는 개별 책 정보 및 도서관 보유 갯수 반환
+class LibraryBooksDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, library_id):
+        # 도서관 없으면 404
+        library = Library.objects.filter(pk=library_id).first()
+        if not library:
+            raise LibraryNotFound
+        
+        raw = request.query_params.get('isbn')
+
+        # ibsn 없으면 400
+        if not raw:
+            return Response({"error": "ISBN이 필요합니다."}, status=400)
+        # 형식 통일
+        isbn = raw.replace("-", "").strip()
+        if not re.fullmatch(r"\d{10}|\d{13}", isbn):
+            return Response({"error": "ISBN 형식이 올바르지 않습니다(10 또는 13자리)."}, status=400)
+
+        books = BookInfoLibrary.objects.filter(library_id=library_id, isbn=isbn, status="AVAILABLE").aggregate(Count('isbn'))
+        bookinfo = BookInfo.objects.filter(isbn=isbn).first()
+        if not bookinfo:
+            return Response({"error":"책 정보가 존재하지 않습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = BookDetailDisplaySerializer(bookinfo).data
+        book_cnt = books['isbn__count'] or 0
+        result = {"data":data ,"book_cnt":book_cnt}
+
+        return Response(result,status=status.HTTP_200_OK)
+
 class LibraryBooksAPIView(APIView):
     permission_classes = [permissions.AllowAny]
 
