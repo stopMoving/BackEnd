@@ -15,42 +15,41 @@ import numpy as np
 
 CATEGORIES = ["소설/시/희곡", "만화", "어린이", "인문학", "에세이", "수험서/자격증", "경제경영", "과학"]
 
-def preference_books_combined(user):
+def preference_books_combined(user, db_alias='default', k=5):
+    try:
+        ui = UserInfo.objects.using(db_alias).get(user=user)
+    except UserInfo.DoesNotExist:
+        return
     mode = "combined"
-    ui = UserInfo.objects.get(user=user)
-    vec_json = ui.preference_vector
-    user_vec = deserialize_sparse(vec_json)
-    if user_vec is None or getattr(user_vec, "nnz", 0) == 0:
-        return Response({"mode": mode, "results": []}, status=status.HTTP_200_OK)
 
+    user_vec = deserialize_sparse(getattr(ui, "preference_vector", None))
+    if user_vec is None or getattr(user_vec, "nnz", 0) == 0:
+        return
+    
     # 로딩 후 정규화(안전)
     user_vec = l2_normalize(user_vec)
 
     # 본인이 기증/수령한 책 제외
     exclude_isbns = set(
-        UserBook.objects.filter(user=user)
+        UserBook.objects.using(db_alias).filter(user=user)
         .values_list("bookinfo_id", flat=True)
     )
 
     # 후보군 로드
-    items, bad_isbns, bad_shapes = [], [], 0
-    exclude_bookinfos = BookInfo.objects.exclude(isbn__in=exclude_isbns).exclude(vector__isnull=True).iterator()
-    for bi in exclude_bookinfos:
+    items = []
+    for bi in (BookInfo.objects.using(db_alias)
+               .exclude(isbn__in=exclude_isbns)
+               .exclude(vector__isnull=True).iterator()):
         csr = deserialize_sparse(bi.vector)
         if csr is None or getattr(csr, "nnz", 0) == 0:
-            bad_isbns.append(bi.isbn)
             continue
-        pair = (bi.isbn, csr)
-        if not (isinstance(pair, (tuple, list)) and len(pair) == 2):
-            bad_shapes += 1
-            continue
-        items.append(pair)
+        items.append((bi.isbn, csr))
 
     # base scores
     cleaned, M, base_scores = cosine_scores(user_vec, items)
     if not cleaned:
-        return Response({"mode": mode, "results": []}, status=status.HTTP_200_OK)
-
+        return 
+    
     # 모드별 부스트용 벡터
     sv = deserialize_sparse(getattr(ui, "preference_vector_survey", None))
 
@@ -76,59 +75,61 @@ def preference_books_combined(user):
     lam = float(getattr(settings, "RECOMMEND_MMR_LAMBDA", 0.3))
 
     if use_div:
-        sel_idx = mmr_rerank(M, boosted, k=5, pool=pool, lam=lam)
+        sel_idx = mmr_rerank(M, boosted, k=k, pool=pool, lam=lam)
         ordered_isbns = [cleaned[i][0] for i in sel_idx]            # ← MMR 순서 보존
     else:
         idx = np.argsort(-boosted)[:5]
         ordered_isbns = [cleaned[i][0] for i in idx]
         
     # userinfo의 preference_booklist에 isbn 리스트 저장
-    ui.preference_book_combined = list(ordered_isbns)
+    ui.preference_book_combined = ordered_isbns
     ui.save(update_fields=["preference_book_combined"])
+    return None
 
-def preference_books_activity(user, k=5):
+def preference_books_activity(user, k=5, db_alias='default'):
+    try:
+        ui = UserInfo.objects.using(db_alias).get(user=user)
+    except UserInfo.DoesNotExist:
+        return
     mode = "activity"
-    ui = UserInfo.objects.get(user=user)
+
     vec_json = ui.preference_vector_activity
     user_vec = deserialize_sparse(vec_json)
     if user_vec is None or getattr(user_vec, "nnz", 0) == 0:
-        return Response({"mode": mode, "results": []}, status=status.HTTP_200_OK)
-
+        return 
+    
     # 로딩 후 정규화(안전)
     user_vec = l2_normalize(user_vec)
 
     # 본인이 기증/수령한 책 제외
     exclude_isbns = set(
-        UserBook.objects.filter(user=user)
+        UserBook.objects.using(db_alias)
+        .filter(user=user)
         .values_list("bookinfo_id", flat=True)
     )
 
     # 후보군 로드
-    items, bad_isbns, bad_shapes = [], [], 0
-    exclude_bookinfos = BookInfo.objects.exclude(isbn__in=exclude_isbns).exclude(vector__isnull=True).iterator()
-    for bi in exclude_bookinfos:
+    items = []
+    for bi in (BookInfo.objects.using(db_alias)
+               .exclude(isbn__in=exclude_isbns)
+               .exclude(vector__isnull=True).iterator()):
         csr = deserialize_sparse(bi.vector)
         if csr is None or getattr(csr, "nnz", 0) == 0:
-            bad_isbns.append(bi.isbn)
             continue
-        pair = (bi.isbn, csr)
-        if not (isinstance(pair, (tuple, list)) and len(pair) == 2):
-            bad_shapes += 1
-            continue
-        items.append(pair)
+        items.append((bi.isbn, csr))
 
     # base scores
     cleaned, M, base_scores = cosine_scores(user_vec, items)
     if not cleaned:
-        return Response({"mode": mode, "results": []}, status=status.HTTP_200_OK)
-
+        return 
+    
     # 모드별 부스트용 벡터
     sv = deserialize_sparse(getattr(ui, "preference_vector_survey", None))
 
     recent_vec = None
     # 최근 N권 평균 벡터
     n = getattr(settings, "RECOMMEND_RECENT_N", 3)
-    recent_books = (UserBook.objects
+    recent_books = (UserBook.objects.using(db_alias)
                     .filter(user=user)
                     .order_by("-created_at")
                     .select_related("bookinfo")[:n])
@@ -178,7 +179,8 @@ def preference_books_activity(user, k=5):
 
     # 선별된 bookinfo에 대해 isbn, category 저장
     all_isbns = [t[0] for t in cleaned]
-    isbn_to_cat = dict(BookInfo.objects.filter(isbn__in=all_isbns).values_list("isbn", "category"))
+    isbn_to_cat = dict(BookInfo.objects.using(db_alias)
+                       .filter(isbn__in=all_isbns).values_list("isbn", "category"))
     
     def topcat_of(isbn: str) -> str | None:
         return first_category(isbn_to_cat.get(isbn))
@@ -215,8 +217,11 @@ def preference_books_activity(user, k=5):
     # userinfo의 preference_booklist에 isbn 리스트 저장
     ui.preference_book_activity= target
     ui.save(update_fields=["preference_book_activity"])
+    return None
     
-def first_category(long_cat: str, base: str = "국내도서"):
+def first_category(long_cat: str | None, base: str = "국내도서"):
+    if not long_cat:
+        return None
     for short_cat in CATEGORIES:
         prefix = f"{base}>{short_cat}"
         if long_cat.startswith(prefix):
