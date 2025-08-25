@@ -154,8 +154,8 @@ class LogoutView(APIView):
         user_id = getattr(request.user, "id", None)
 
         logout(request)
-        
-        if user_id == 17:
+
+        if user_id == 44:
             User.objects.filter(id=user_id).update(is_survey=False)
 
             UserInfo.objects.filter(user_id=user_id).update(survey_done=False)
