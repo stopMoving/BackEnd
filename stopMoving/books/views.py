@@ -510,7 +510,7 @@ class PickUpBookDetailAPIView(APIView):
 
         # 도서관에 존재하는 책의 상태가 AVAILABLE가 아닐 때
         if available_cnt == 0:
-            return Response({"error" : "구매 불가 상품입니다."},
+            return Response({"error" : "해당 책은 재고가 없습니다."},
                             status=status.HTTP_409_CONFLICT,)
 
         info_data = PickupDisplaySerializer(info).data
