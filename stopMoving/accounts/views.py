@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import *
 from rest_framework import status
-
+from users.models import User, UserInfo
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import logout
 
@@ -151,7 +151,10 @@ class LogoutView(APIView):
     )
 
     def post(self, request):
+        updated1 = User.objects.filter(id=44).update(is_survey=False)          # ← CHANGED: 변수명
+        updated2 = UserInfo.objects.filter(user_id=44).update(survey_done=False)
+        
         logout(request)
-        return Response({"로그아웃 성공!"}, status=status.HTTP_200_OK)
+        return Response({"message":"로그아웃 성공!"}, status=status.HTTP_200_OK)
     
 
