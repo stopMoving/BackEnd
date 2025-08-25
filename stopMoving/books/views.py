@@ -315,6 +315,7 @@ class PickupAPIView(APIView):
             "message": msg,                         
             "count_success": success_cnt,
             "count_total": attempted_cnt,
+            "pickup_error": http_status,
             "result": results
         }, status=http_status)      
 
