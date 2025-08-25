@@ -335,7 +335,7 @@ def preference_notification(donor_user, donated_isbns, k: int = 3, thresh: float
         wrapped = [wrap_title(t) for t in chosen_titles]
         
         for i in range(len(wrapped)):
-            msg = f"《wrapped[i]》 이 방금 나눔됐어요!\n 놓치기 전에 데려가보세요."
+            msg = f"《{wrapped[i]}》 이 방금 나눔됐어요!\n 놓치기 전에 데려가보세요."
             push(user=ui.user, type_="book_recommendation", message=msg)
 
             #《》
