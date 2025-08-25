@@ -33,7 +33,7 @@ DISCOUNT_RATE = Decimal("0.15")
 # 《》
 def message(first_title: str, count: int, verb: str) -> str:
     # verb: "기증 접수", "픽업 완료"
-    return f"《{first_title}》 {verb}" if count == 1 else f"《{first_title}》 외 {count-1}권 {verb}"
+    return f"《{first_title}》 {verb}" if count == 1 else f"《{first_title}》 외 {count-1}권{verb}"
 
 def _increase_stock_one(library_id, isbn: str, qty: int):
     """
@@ -347,7 +347,7 @@ class PickupAPIView(APIView):
             first_isbn = success_books[0]
             _bi = BookInfo.objects.filter(isbn=first_isbn).only("title").first()
             first_title = (_bi.title if _bi else None) or "도서"
-            msg = message(first_title, len(success_books), "을 데려왔어요!\n 좋은 시간 보내세요")
+            msg = message(first_title, len(success_books),"을 데려왔어요!\n 좋은 시간 보내세요")
             push(
                 user=request.user,
                 type_="book_pickup",     
