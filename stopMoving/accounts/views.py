@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import *
 from rest_framework import status
-
+from users.models import User, UserInfo
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import logout
 
@@ -151,7 +151,16 @@ class LogoutView(APIView):
     )
 
     def post(self, request):
+        user_id = getattr(request.user, "id", None)
+
         logout(request)
-        return Response({"로그아웃 성공!"}, status=status.HTTP_200_OK)
+
+        if user_id == 44:
+            User.objects.filter(id=user_id).update(is_survey=False)
+
+            UserInfo.objects.filter(user_id=user_id).update(survey_done=False)
+        
+        
+        return Response({"message":"로그아웃 성공!"}, status=status.HTTP_200_OK)
     
 
