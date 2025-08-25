@@ -63,6 +63,51 @@ def _increase_stock_one(library_id, isbn: str, qty: int):
         "total_quantity": bil.quantity,
         "status": bil.status,
     }
+# isbn 책 제목 몇권 부족한지
+def _check_stock(library_id, isbn: str, qty: int) -> tuple[bool, dict, int]:
+
+    bookinfo = BookInfo.objects.filter(isbn=isbn).first()
+    if not bookinfo:
+        return (False,
+                {"isbn": isbn, "error": "책 정보가 없습니다. 먼저 BookInfo를 생성하세요."},
+                status.HTTP_404_NOT_FOUND,
+        )
+    
+    bil = (
+            BookInfoLibrary.objects
+            .select_for_update()
+            .filter(library_id=library_id, isbn=bookinfo)
+            .first()
+        )
+    if not bil:
+        result = {"isbn": isbn, "title": bookinfo.title, "error":"해당 도서관에 재고 항목이 없습니다."}
+        return (False, {"result": result}, status.HTTP_404_NOT_FOUND)
+        # return Response({"isbn": isbn, "title": bookinfo.title, "error":"해당 도서관에 재고 항목이 없습니다."},
+        #                 status=status.HTTP_404_NOT_FOUND)
+        
+    if bil.status != "AVAILABLE":
+        result = {"isbn":isbn, "title": bookinfo.title, "error":"구매 불가 상품입니다."}
+        return (False, {"result": result}, status.HTTP_400_BAD_REQUEST)
+        # return Response({"isbn":isbn, "title": bookinfo.title, "error":"구매 불가 상품입니다."},
+        #                 status=status.HTTP_400_BAD_REQUEST)
+    
+    if bil.quantity - qty < 0:
+        print(f"qty{qty}")
+        print(f"bil.quantity{bil.quantity}")
+
+        stock = qty - bil.quantity
+        print(stock)
+        result = {"isbn": isbn, "title": bookinfo.title, "stock": stock, "error":f"{stock}권 부족합니다."}
+        return (False, {"result": result}, status.HTTP_409_CONFLICT)
+        # return Response({"isbn": isbn, "title": bookinfo.title, "stock": stock, "error":f"{stock}권 부족합니다."},
+        #                 status=status.HTTP_409_CONFLICT)
+    return (True,{
+        "library_id": getattr(library_id, "id", None),  
+        "isbn": bookinfo.isbn,                           
+        "removed_quantity": qty,                         
+        "total_quantity": bil.quantity,
+        "status": bil.status,
+    }, status.HTTP_200_OK)
 
 def _decrease_stock_one(library_id, isbn: str, qty: int) -> tuple[bool, dict, int]:
     """
@@ -82,25 +127,8 @@ def _decrease_stock_one(library_id, isbn: str, qty: int) -> tuple[bool, dict, in
             .select_for_update()
             .filter(library_id=library_id, isbn=bookinfo)
             .first()
-        )
-        if not bil:
-            return (False,
-                    {"isbn": isbn, "error": "해당 도서관에 재고 항목이 없습니다."},
-                    status.HTTP_404_NOT_FOUND,
-            )
-        
-        if bil.status != "AVAILABLE":
-            return (False,
-                    {"isbn": isbn, "error": "구매 불가 상품입니다."},
-                    status.HTTP_409_CONFLICT,
-            )
-        
-        if bil.quantity < qty:
-            return (False,
-                    {"isbn": isbn, "error": "요청 권 수가 재고보다 많습니다."},
-                    status.HTTP_409_CONFLICT,
-            )        
-        
+        ) 
+
         BookInfoLibrary.objects.filter(pk=bil.pk).update(quantity=F("quantity") - qty)
         bil.refresh_from_db()
 
@@ -222,59 +250,85 @@ class PickupAPIView(APIView):
 
         results, success_cnt = [], 0
         success_books = [] # 기증 성공한 책 목록
+        ok_cnt = []
+        check = []
+        codes = []
         any_success = False # 책 추천 기능 관련 플래그
 
         for item in v["books"]:
             isbn_str = str(item["isbn"]).replace("-", "").strip()
             qty = int(item["quantity"])
-            ok, payload, code = _decrease_stock_one(library, isbn_str, qty)
-            if ok:
-                any_success = True
-                # FIX: 성공 카운트 변수 오타
-                success_cnt += 1
-                # results.append({"input": item, "status": "OK", "data": out})
-                success_books.append(isbn_str)
+            ok, payload, code = _check_stock(library, isbn_str, qty)
+            ok_cnt.append(ok)
+            check.append(payload)
+            codes.append(code)
 
-                results.append({
-                    "isbn": item["isbn"],
-                    "status": "PICKED",
-                })
-                with transaction.atomic():
-                    UserBook.objects.create(
-                        user=request.user,
-                        bookinfo_id=isbn_str,  # to_field='isbn'
-                        status="PURCHASED",
-                        library_id=lib_id,
-                        quantity=qty
-                    )
+        if all(ok_cnt):
+            for item in v["books"]:
+                isbn_str = str(item["isbn"]).replace("-", "").strip()
+                qty = int(item["quantity"])
+                ok, payload, code = _decrease_stock_one(library, isbn_str, qty)
+                if ok:
+                    any_success = True
+                    # FIX: 성공 카운트 변수 오타
+                    success_cnt += 1
+                    # results.append({"input": item, "status": "OK", "data": out})
+                    success_books.append(isbn_str)
 
-                info = BookInfo.objects.filter(isbn=isbn_str).only("isbn", "title", "vector").first()
-                if info:
-                    ui, _ = UserInfo.objects.get_or_create(user = request.user)
-                    book_v = deserialize_sparse(info.vector)
-                    if book_v is not None:
-                        # 활동 벡터 EMA 업데이트
-                        beta = settings.ACTIVITY_EMA_BETA
-                        old_act = deserialize_sparse(ui.preference_vector_activity)
-                        new_act = book_v if old_act is None else (beta * old_act + (1 - beta) * book_v)
-                        ui.preference_vector_activity = serialize_sparse(new_act)
+                    results.append({
+                        "isbn": item["isbn"],
+                        "status": "PICKED",
+                    })
+                    with transaction.atomic():
+                        UserBook.objects.create(
+                            user=request.user,
+                            bookinfo_id=isbn_str,  # to_field='isbn'
+                            status="PURCHASED",
+                            library_id=lib_id,
+                            quantity=qty
+                        )
+                    info = BookInfo.objects.filter(isbn=isbn_str).only("isbn", "title", "vector").first()
+                    if info:
+                        ui, _ = UserInfo.objects.get_or_create(user = request.user)
+                        book_v = deserialize_sparse(info.vector)
+                        if book_v is not None:
+                            # 활동 벡터 EMA 업데이트
+                            beta = settings.ACTIVITY_EMA_BETA
+                            old_act = deserialize_sparse(ui.preference_vector_activity)
+                            new_act = book_v if old_act is None else (beta * old_act + (1 - beta) * book_v)
+                            ui.preference_vector_activity = serialize_sparse(new_act)
+                            # 통합 벡터 갱신: α*survey + (1-α)*activity
+                            survey = deserialize_sparse(ui.preference_vector_survey)
+                            combined = weighted_sum(survey, new_act, alpha = settings.RECOMMEND_ALPHA)
+                            # l2 정규화 추가
+                            combined = l2_normalize(combined)
+                            ui.preference_vector = serialize_sparse(combined if combined is not None else new_act)
 
-                        # 통합 벡터 갱신: α*survey + (1-α)*activity
-                        survey = deserialize_sparse(ui.preference_vector_survey)
-                        combined = weighted_sum(survey, new_act, alpha = settings.RECOMMEND_ALPHA)
-                        # l2 정규화 추가
-                        combined = l2_normalize(combined)
-                        ui.preference_vector = serialize_sparse(combined if combined is not None else new_act)
-
-                        ui.save(update_fields=["preference_vector_activity", "preference_vector"])                 
-                
-            else:
-                # 실패 케이스
-                results.append({
-                    "isbn": payload["isbn"],
-                    "status": "FAILED",
-                    "error": payload["error"],
-                    "error_code": code})
+                            ui.save(update_fields=["preference_vector_activity", "preference_vector"])
+                else:
+                    # 실패 케이스
+                    results.append({
+                        "isbn": payload.get("isbn", isbn_str),        
+                        "status": "FAILED",
+                        "error": payload.get("error", "decrease failed"),
+                        "error_code": code
+                    })             
+        
+        # ok에 false 있을 때            
+        else:
+            
+            for idx, ok in enumerate(ok_cnt):
+                if not ok:
+                    p = check[idx] if idx < len(check) else {}
+                   
+                    body = p.get("result", p)
+                    results.append({
+                        "isbn": (body or {}).get("isbn"),
+                        "title": (body or {}).get("title"),
+                        "status": "FAILED",
+                        "error": (body or {}).get("error", "stock check failed"),
+                        "error_code": codes[idx] if idx < len(codes) else None
+                    })
 
         # 모든 save 끝난뒤 한 번만 등록        
         if any_success:
@@ -315,7 +369,7 @@ class PickupAPIView(APIView):
             "message": msg,                         
             "count_success": success_cnt,
             "count_total": attempted_cnt,
-            "pickup_error": http_status,
+            "pickup_status": http_status,
             "result": results
         }, status=http_status)      
 
