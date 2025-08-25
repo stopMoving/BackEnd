@@ -330,12 +330,12 @@ def preference_notification(donor_user, donated_isbns, k: int = 3, thresh: float
         # 《 》로 감싼 표시용 문자열 생성 (안 길게 30자 정도로 자름)
         def wrap_title(s: str) -> str:
             inner = Truncator(s).chars(30)
-            return f"\u300A{inner}\u300B"  # 《 ... 》
+            return f"《{inner}》"  # 《 ... 》
 
         wrapped = [wrap_title(t) for t in chosen_titles]
         
         for i in range(len(wrapped)):
-            msg = f"《{wrapped[i]}》 이 방금 나눔됐어요!\n 놓치기 전에 데려가보세요."
+            msg = f"{wrapped[i]} 이 방금 나눔됐어요!\n 놓치기 전에 데려가보세요."
             push(user=ui.user, type_="book_recommendation", message=msg)
 
             #《》
