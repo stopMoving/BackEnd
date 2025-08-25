@@ -287,24 +287,24 @@ class PickupAPIView(APIView):
                             library_id=lib_id,
                             quantity=qty
                         )
-                    info = BookInfo.objects.filter(isbn=isbn_str).only("isbn", "title", "vector").first()
-                    if info:
-                        ui, _ = UserInfo.objects.get_or_create(user = request.user)
-                        book_v = deserialize_sparse(info.vector)
-                        if book_v is not None:
-                            # 활동 벡터 EMA 업데이트
-                            beta = settings.ACTIVITY_EMA_BETA
-                            old_act = deserialize_sparse(ui.preference_vector_activity)
-                            new_act = book_v if old_act is None else (beta * old_act + (1 - beta) * book_v)
-                            ui.preference_vector_activity = serialize_sparse(new_act)
-                            # 통합 벡터 갱신: α*survey + (1-α)*activity
-                            survey = deserialize_sparse(ui.preference_vector_survey)
-                            combined = weighted_sum(survey, new_act, alpha = settings.RECOMMEND_ALPHA)
-                            # l2 정규화 추가
-                            combined = l2_normalize(combined)
-                            ui.preference_vector = serialize_sparse(combined if combined is not None else new_act)
+                        info = BookInfo.objects.filter(isbn=isbn_str).only("isbn", "title", "vector").first()
+                        if info:
+                            ui, _ = UserInfo.objects.get_or_create(user = request.user)
+                            book_v = deserialize_sparse(info.vector)
+                            if book_v is not None:
+                                # 활동 벡터 EMA 업데이트
+                                beta = settings.ACTIVITY_EMA_BETA
+                                old_act = deserialize_sparse(ui.preference_vector_activity)
+                                new_act = book_v if old_act is None else (beta * old_act + (1 - beta) * book_v)
+                                ui.preference_vector_activity = serialize_sparse(new_act)
+                                # 통합 벡터 갱신: α*survey + (1-α)*activity
+                                survey = deserialize_sparse(ui.preference_vector_survey)
+                                combined = weighted_sum(survey, new_act, alpha = settings.RECOMMEND_ALPHA)
+                                # l2 정규화 추가
+                                combined = l2_normalize(combined)
+                                ui.preference_vector = serialize_sparse(combined if combined is not None else new_act)
 
-                            ui.save(update_fields=["preference_vector_activity", "preference_vector"])
+                                ui.save(update_fields=["preference_vector_activity", "preference_vector"])
                 else:
                     # 실패 케이스
                     results.append({
@@ -325,6 +325,7 @@ class PickupAPIView(APIView):
                     results.append({
                         "isbn": (body or {}).get("isbn"),
                         "title": (body or {}).get("title"),
+                        "stock": (body or {}).get("stock"),
                         "status": "FAILED",
                         "error": (body or {}).get("error", "stock check failed"),
                         "error_code": codes[idx] if idx < len(codes) else None
