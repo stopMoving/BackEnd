@@ -1,0 +1,166 @@
+from rest_framework import serializers
+from .models import User
+from rest_framework_simplejwt.serializers import RefreshToken
+import re
+
+# 회원가입용 시리얼라이저
+class RegisterSerializer(serializers.ModelSerializer):
+    password1 = serializers.CharField(write_only=True, required=True)
+    password2 = serializers.CharField(write_only=True, required=True)
+    username = serializers.CharField(required=True)
+    nickname = serializers.CharField(required=True)
+
+    class Meta:
+        model = User
+        # 필요한 필드값만 지정
+        fields = ['username','password1', 'password2', 'nickname']
+    
+    def to_internal_value(self, data):
+        # 공백도 누락으로 처리
+        def is_missing(v):
+            return v is None or (isinstance(v, str) and v.strip() == "")
+
+        msgs = {
+            "username": "아이디를 입력해 주세요.",
+            "password1": "비밀번호를 입력해 주세요.",
+            "password2": "비밀번호 확인을 입력해 주세요.",
+            "nickname": "닉네임을 입력해 주세요.",
+        }
+
+        # (1) 누락 체크: username → password1 → password2 → nickname
+        for f in ("username", "password1", "password2", "nickname"):
+            v = data.get(f, None)
+            if is_missing(v):
+                raise serializers.ValidationError({f: msgs[f]})
+
+        # (2) 형식/중복 체크: username → password1 → nickname
+        #     기존 validate_* 메서드를 직접 호출해 "첫 번째"만 에러 처리
+        #     (이렇게 하면 DRF가 모든 필드 에러를 누적 수집하지 않음)
+        try:
+            _ = self.validate_username(str(data.get("username")))
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"username": e.detail[0] if isinstance(e.detail, list) else e.detail})
+
+        try:
+            _ = self.validate_password1(str(data.get("password1")))
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"password1": e.detail[0] if isinstance(e.detail, list) else e.detail})
+
+        try:
+            _ = self.validate_nickname(str(data.get("nickname")))
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"nickname": e.detail[0] if isinstance(e.detail, list) else e.detail})
+
+        # 통과 시 원래처럼 내부 dict 반환 (필요 시 strip)
+        return {
+            "username": str(data.get("username")).strip(),
+            "password1": str(data.get("password1")),
+            "password2": str(data.get("password2")),
+            "nickname": str(data.get("nickname")).strip(),
+        }
+    
+    # create() 재정의
+    def create(self, validated_data):
+    
+        # 비밀번호 분리
+        password = validated_data.pop('password1')
+        validated_data.pop('password2')  # 필요 없음
+        
+        # user 객체 생성
+        user = User(**validated_data)
+
+        # 비밀번호는 해싱해서 저장
+        user.set_password(password)
+        user.save()
+
+        return user
+    
+    # ID 유효성 검사 함수
+    def validate_username(self, value):
+        
+        # ID 길이가 맞는지 검사
+        if len(value) < 5 or len(value) > 20:
+            raise serializers.ValidationError("아이디는 5자 이상 20자 이하만 가능합니다.")
+        # 형식이 맞는지 검사
+        if not re.match(r'^[a-z0-9]+$', value):
+            raise serializers.ValidationError("아이디는 영문 소문자와 숫자만 사용할 수 있습니다.")
+        # ID 중복 여부 검사
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("이미 사용 중인 아이디입니다.")
+        
+        return value
+    
+    # 비밀번호 유효성 검사
+    def validate_password1(self, value):
+
+        # 비밀번호 길이 맞는지 검사
+        if len(value) < 8 or len(value) > 16:
+            raise serializers.ValidationError("비밀번호는 8자 이상 16자 이하만 가능합니다.")
+        # 비밀번호 형식 맞는지 검사
+        if not re.match(r'^[A-Za-z0-9]+$', value):
+            raise serializers.ValidationError("비밀번호는 영문 대/소문자와 숫자만 사용 가능합니다.")
+        
+        return value
+    
+    # 비밀번호 일치 확인
+    def validate(self, data):
+
+        if data['password1'] != data['password2']:
+            raise serializers.ValidationError({"비밀번호가 일치하지 않습니다."})
+        
+        return data
+    
+    # 닉네임 유효성 검사
+    def validate_nickname(self, value):
+
+        # 닉네임 길이 맞는지 검사
+        if len(value) < 2 or len(value) > 10:
+            raise serializers.ValidationError("닉네임은 2자 이상 10자 이하만 가능합니다.")
+        # 닉네임 형식 맞는지 검사
+        if not re.match(r'^[A-Za-z가-힣]+$', value):
+            raise serializers.ValidationError("닉네임은 한글과 영문 대소문자만 사용할 수 있습니다.")
+        # 닉네임 중복 검사
+        if User.objects.filter(nickname=value).exists():
+            raise serializers.ValidationError("이미 사용 중인 닉네임입니다.")
+        
+        return value
+
+# 로그인용 시리얼라이저
+class AuthSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(required=True)
+    
+    class Meta:
+        model = User
+
+        # 로그인은 username과 password만 필요
+        fields = ['username', 'password']
+
+    # 로그인 유효성 검사 함수
+    def validate(self, data):
+        username = data.get('username', None)
+        password = data.get('password', None)
+		    
+		# username으로 사용자 찾는 모델 함수
+        user = User.get_user_by_username(username=username)
+        
+        # 존재하는 회원인지 확인
+        if user is None:
+            raise serializers.ValidationError("ID 혹은 비밀번호를 잘못 입력하셨거나 등록되지 않은 ID입니다.")
+        else:
+			# 비밀번호 일치 여부 확인
+            if not user.check_password(password):
+                raise serializers.ValidationError("ID 혹은 비밀번호를 잘못 입력하셨거나 등록되지 않은 ID입니다.")
+        
+        token = RefreshToken.for_user(user)
+        refresh_token = str(token)
+        access_token = str(token.access_token)
+
+        data = {
+            "user": user,
+            "refresh_token": refresh_token,
+            "access_token": access_token,
+        }
+
+        return data
+

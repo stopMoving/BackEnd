@@ -19,6 +19,8 @@ from django.urls import path, include
 from rest_framework import permissions 
 from drf_yasg.views import get_schema_view 
 from drf_yasg import openapi
+from django.http import JsonResponse
+from django.conf import settings
 
 # Swagger 설정
 schema_view = get_schema_view(
@@ -33,6 +35,17 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('posts/', include('posts.urls')),  # posts 앱의 URL 포함
+    path('bookinfo/', include('bookinfo.urls')), # bookinfo 앱의 URL 포함
+    path('accounts/', include('accounts.urls')), # accounts 앱의 URL 포함
+    path('books/', include('books.urls')), # books 앱의 URL 포함
+    path('library/', include('library.urls')), # library 앱의 URL 포함
+    path('preferences/', include('preferences.urls')), # preferences 앱의 URL 포함
+    path('notification/', include('notification.urls')), # notification 앱의 URL 포함 
+    path('users/', include('users.urls')),  # users 앱의 URL 포함
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += [
+        path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    ]

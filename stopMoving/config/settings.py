@@ -15,14 +15,31 @@ import os, json
 from django.core.exceptions import ImproperlyConfigured
 
 from src.stopmoving.logging_config import LOGGING_CONFIG as CUSTOM_LOGGING
+import pymysql
+
+from datetime import timedelta
 
 # 로깅 설정
 LOGGING_CONFIG = "logging.config.dictConfig"
 LOGGING = CUSTOM_LOGGING
 
+# pymysql을 MySQLdb로 사용하도록 설정
+pymysql.install_as_MySQLdb()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+VECTOR_DATA_DIR = os.path.join(BASE_DIR, "vector_data")
+VECTOR_PICKLE_PATH = os.path.join(VECTOR_DATA_DIR, "vectorizer.pkl")
 
+# 수정: 0.7 -> 0.85
+RECOMMEND_ALPHA = 0.85 # 통합 = a*설문 + (1-a)+활동
+ACTIVITY_EMA_BETA = 0.8 # 활동벡터 EMA: new = b*old + (1-b)*new_book
+# 추천 튜닝 파라미터
+RECOMMEND_MMR_POOL = 100 # 초기 상위 N개 후보에서 리랭킹
+RECOMMEND_MMR_LAMBDA = 0.3 # 연관도 ↑, 분포 ↓
+RECOMMEND_SURVEY_BOOST = 0.25 # combined mode: 설문 벡터 가중치
+RECOMMEND_RECENT_BOOST = 0.30 # activity mode: 최근 픽업 벡터 가중치
+RECOMMEND_RECENT_N = 3 # 최근 N권 평균으로 최근 벡터 구성
 secret_file = os.path.join(BASE_DIR, 'secrets.json') 
 
 with open(secret_file) as f:
@@ -37,13 +54,16 @@ def get_secret(setting, secrets=secrets):
         raise ImproperlyConfigured(error_msg)
 
 SECRET_KEY = get_secret("SECRET_KEY")
+API_KEY = get_secret("ALADIN_API_KEY")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
+
+SHOW_SWAGGER = DEBUG
 
 # 운영 시에는 보안상의 이유로 IP를 직접 기재하는 것이 좋습니다.
 ALLOWED_HOSTS = ['*']
@@ -61,13 +81,21 @@ DJANGO_APPS = [
 ]
 
 PROJECT_APPS = [
-    'posts', # test API 위해 생성
-
+    'bookinfo', # 책 검색
+    'accounts', # 회원가입 및 로그인
+    'library', # 도서관 정보
+    'users', # 유저 정보
+    'books', # 책 객체
+    'books.management.commands', # 커맨드 추가
+    'preferences', # 선호도 기반 추천
+    'notification', # 알림기능
 ]
 
 THIRD_PARTY_APPS = [ 
     "corsheaders",
     'drf_yasg',  # Swagger
+    'rest_framework_simplejwt', # JWT
+    'storages',
 ]
 
 
@@ -108,10 +136,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# 데이터베이스 설정
+# secrets.json에 각자 유저 이름과 비밀번호에 맞게 작성되어있는지 확인!
+DB_NAME = get_secret("DB_NAME") # prod / dev 구분
+# DB_USER & DB_PW: rds / mysql 접속 유저 이름과 비밀번호 구분
+DB_USER = get_secret("DB_USER")
+DB_PW = get_secret("DB_PW")
+DB_HOST = get_secret("DB_HOST") # EC2 호스트 주소 / 로컬 포트
+DB_PORT = get_secret("DB_PORT") # 3306(ec2) / 3307(로컬)
+
+# ssh 터널링 적용 이후 db 정보 연결
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': DB_NAME,
+        'USER': DB_USER,
+        'PASSWORD': DB_PW,
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
     }
 }
 
@@ -134,17 +176,20 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+AUTH_USER_MODEL = 'accounts.User'
+
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
@@ -165,13 +210,43 @@ CORS_ALLOW_CREDENTIALS = True
 # 여기에서의 localhost는 EC2 인스턴스의 로컬환경이 아니라 프론트엔드 개발 로컬 환경 의미
 # 3000 포트는 프론트엔드 React 애플리케이션의 포트 번호
 # 추후 프론트엔드에서 웹 페이지 배포 후 도메인 매핑했다면 해당 도메인 추가 필요
+# 우선순위 적용되어 CORS_ALLOW_ALL_ORIGINS = True가 설정되면 CORS_ALLOWED_ORIGINS는 무시됩니다.
+CORS_ALLOW_ALL_ORIGINS = True  # ⚠️ 운영 배포 시엔 사용 비추천
+
 CORS_ALLOWED_ORIGINS = [ 
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://idyllic-blancmange-57b456.netlify.app", # 도메인까지만 작성
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ]
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'EXCEPTION_HANDLER': 'config.exceptions.custom_exception_handler',
 }
+
+REST_USE_JWT = True
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),    # 유효기간 20일 -> 배포시 3시간으로 변경
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),    # 유효기간 7일
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'TOKEN_USER_CLASS': 'accounts.User',
+}
+
+###AWS###
+AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID") # .csv 파일에 있는 내용을 입력 Access key ID. IAM 계정 관련
+AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY") # .csv 파일에 있는 내용을 입력 Secret access key. IAM 계정 관련
+AWS_REGION = 'ap-northeast-2'
+
+###S3###
+AWS_STORAGE_BUCKET_NAME = 'stopmoving'
+AWS_S3_CUSTOM_DOMAIN = '%s.s3.%s.amazonaws.com' % (AWS_STORAGE_BUCKET_NAME,AWS_REGION)
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
+from pillow_heif import register_heif_opener
+register_heif_opener()
