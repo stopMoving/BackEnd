@@ -167,6 +167,7 @@ class MyLibraryListAPIView(APIView):
         data = LibraryNameSerializer(ordered, many=True).data
         return Response({"libraries": data}, status=status.HTTP_200_OK)
     
+from PIL import Image, ImageOps
 
 class UserImageUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -182,6 +183,37 @@ class UserImageUploadView(APIView):
 
         image_file = request.FILES['image']
 
+        name_lower = image_file.name.lower()  # ← ADDED
+        is_heic = (  # ← ADDED
+            name_lower.endswith(('.heic', '.heif'))
+            or (image_file.content_type in ('image/heic', 'image/heif'))
+        )
+
+        upload_body = image_file.read()      # ← CHANGED: 아래에서 HEIC면 바꿔치기
+        upload_content_type = image_file.content_type or "application/octet-stream"  # ← ADDED
+        upload_filename = image_file.name    # ← ADDED
+
+        if is_heic:
+            try:
+                image_file.seek(0)  # 안전하게 처음 위치로 이동  ← ADDED
+                img = Image.open(image_file)  # HEIC도 열림 (register_heif_opener 덕분)
+                img = ImageOps.exif_transpose(img)  # 회전 보정  ← ADDED
+                img = img.convert("RGB")            # JPG 저장 위해 RGB로  ← ADDED
+
+                import io  # ← ADDED
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=90, optimize=True)  # ← ADDED (용량 최적화)
+                buf.seek(0)
+
+                upload_body = buf.read()                 # ← ADDED: 업로드 바디를 변환본으로 교체
+                upload_content_type = "image/jpeg"       # ← ADDED
+                # 확장자 .jpg로 교체
+                base, _dot, _ext = upload_filename.rpartition('.')  # ← ADDED
+                upload_filename = f"{(base or upload_filename).split('/')[-1]}.jpg"  # ← ADDED
+            except Exception as e:
+                return Response({"error": f"HEIC 변환 실패: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
         s3_client = boto3.client(
             "s3",
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -190,14 +222,14 @@ class UserImageUploadView(APIView):
         )
 
         # S3에 파일 저장
-        file_path = f"uploads/{image_file.name}"
+        file_path = f"uploads/{upload_filename}"
         # S3에 파일 업로드
         try:
             s3_client.put_object(
                 Bucket=settings.AWS_STORAGE_BUCKET_NAME,
                 Key=file_path,
-                Body=image_file.read(),
-                ContentType=image_file.content_type,
+                Body=upload_body,                 # ← CHANGED: 변환/원본 공통 바디
+                ContentType=upload_content_type,  # ← CHANGED: 변환 시 image/jpeg
             )
         except Exception as e:
             return Response({"error": f"S3 Upload Failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
