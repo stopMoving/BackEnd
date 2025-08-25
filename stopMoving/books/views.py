@@ -180,7 +180,7 @@ class DonationAPIView(APIView):
             bi = BookInfo.objects.filter(isbn=success_isbn[0]).only("title").first()
             first_title = (bi.title if bi else None) or "도서"
             base_msg = message(first_title, total_qty,"을 나눔했어요!")
-            msg = f"{base_msg}\n+{points_earned:,}P 적립"
+            msg = f"{base_msg}\n +{points_earned:,}P 적립"
             push(user=request.user,
                  type_="book_donated",
                  message=msg,
@@ -292,7 +292,7 @@ class PickupAPIView(APIView):
             first_isbn = success_books[0]
             _bi = BookInfo.objects.filter(isbn=first_isbn).only("title").first()
             first_title = (_bi.title if _bi else None) or "도서"
-            msg = message(first_title, len(success_books), "을 데려왔어요!\n좋은 시간 보내세요")
+            msg = message(first_title, len(success_books), "을 데려왔어요!\n 좋은 시간 보내세요")
             push(
                 user=request.user,
                 type_="book_pickup",     
@@ -369,10 +369,15 @@ class BookDetailAPIView(APIView):
                 dist_km = acos(cos(φ1)*cos(φ2)*cos(Δλ) + sin(φ1)*sin(φ2)) * EARTH_KM
                 d_m = int(round(dist_km * 1000))
 
+            distance_display = None
+            
+            if d_m is not None:
+                distance_display = f"{d_m/1000:.1f}km" if d_m >= 1000 else f"{d_m}m"
+            
             libraries.append({
                 "library_id": row["library_id__id"],
                 "name": row["library_id__name"],
-                "distance_m": d_m,                 # 좌표 없으면 None
+                "distance_m": distance_display,                 # 좌표 없으면 None
                 "available_books": row["available_books"],
             })
 
